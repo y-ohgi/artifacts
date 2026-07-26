@@ -90,10 +90,25 @@ const EmptyState: FC = () => (
   </div>
 );
 
+/**
+ * 非公開アーティファクトを所有者として開くための導線。
+ *
+ * 閲覧URL(`item.url`)はAccess非保護のため、Accessのcookieが届かない環境では
+ * 所有者でも404になりうる。Access保護下の `/_auth/view` を併記しておくことで、
+ * cookieの挙動に依存せず所有者が内容を確認できる。
+ */
+const OwnerViewLink: FC<{ item: ArtifactListItem }> = ({ item }) =>
+  item.visibility === "private" && item.ownerViewUrl !== undefined ? (
+    <div class="artifact-meta">
+      <a href={item.ownerViewUrl}>所有者として開く</a>
+    </div>
+  ) : null;
+
 const ArtifactRow: FC<{ item: ArtifactListItem }> = ({ item }) => (
   <tr>
     <td class="artifact-name">
       <a href={item.url}>{item.name}</a>
+      <OwnerViewLink item={item} />
     </td>
     <td class="artifact-meta">{formatSize(item.size)}</td>
     <td class="artifact-meta">

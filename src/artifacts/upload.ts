@@ -1,6 +1,6 @@
-import { insertArtifact, type Visibility } from "../db";
+import { insertArtifact, nameExists, type Visibility } from "../db";
 import type { AppEnv } from "../env";
-import { NAME_ALLOWED_DESCRIPTION, validateName } from "../ids";
+import { NAME_ALLOWED_DESCRIPTION, suggestAlternativeNames, validateName } from "../ids";
 import { objectKey } from "./serve";
 
 /** FR-003. Well inside the 100 MB Workers request body limit. */
@@ -16,7 +16,7 @@ export type UploadFailure =
   | { readonly reason: "too_large"; readonly limitBytes: number }
   | { readonly reason: "not_html" }
   | { readonly reason: "invalid_name"; readonly message: string; readonly allowed: string }
-  | { readonly reason: "name_conflict" }
+  | { readonly reason: "name_conflict"; readonly suggestions: readonly string[] }
   | { readonly reason: "storage_failed" };
 
 export type UploadOutcome =
@@ -113,7 +113,17 @@ export async function storeArtifact(
   // "private unless explicitly published" is enforced in one place (FR-022).
   const reserved = await insertArtifact(env.DB, uid, name, bytes.byteLength, now);
   if (!reserved.ok) {
-    return { ok: false, failure: { reason: "name_conflict" } };
+    // The candidates are looked up only after a collision, so the common path
+    // does not pay for them (FR-007).
+    return {
+      ok: false,
+      failure: {
+        reason: "name_conflict",
+        suggestions: await suggestAlternativeNames(name, (candidate) =>
+          nameExists(env.DB, uid, candidate),
+        ),
+      },
+    };
   }
 
   try {

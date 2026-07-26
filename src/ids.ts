@@ -118,3 +118,59 @@ function invalid(reason: NameValidationError): NameValidationResult {
     allowed: NAME_ALLOWED_DESCRIPTION,
   };
 }
+
+/** Longest allowed length before the extension, from NAME_PATTERN. */
+const NAME_STEM_MAX_LENGTH = 64;
+
+/** How many candidates are probed before giving up (FR-007). */
+const SUGGESTION_PROBE_LIMIT = 100;
+
+/** How many usable candidates are returned at most. */
+const SUGGESTION_COUNT = 3;
+
+/**
+ * Splits `report.html` into its stem and its extension.
+ *
+ * Only called with names that already passed `validateName`, so the extension is
+ * always present; the fallback keeps the function total anyway.
+ */
+function splitName(name: string): { stem: string; extension: string } {
+  const dot = name.lastIndexOf(".");
+  return dot <= 0
+    ? { stem: name, extension: "" }
+    : { stem: name.slice(0, dot), extension: name.slice(dot) };
+}
+
+/**
+ * Proposes names that do not collide, in the `<stem>-2`, `<stem>-3`, … order
+ * described by FR-007.
+ *
+ * `isTaken` is injected rather than importing the database layer, which keeps
+ * this module free of bindings and lets the ordering be tested without D1.
+ * Probing stops after SUGGESTION_PROBE_LIMIT candidates so a namespace full of
+ * collisions cannot turn one upload into unbounded work.
+ */
+export async function suggestAlternativeNames(
+  name: string,
+  isTaken: (candidate: string) => Promise<boolean>,
+  max: number = SUGGESTION_COUNT,
+): Promise<string[]> {
+  const { stem, extension } = splitName(name);
+  const suggestions: string[] = [];
+
+  for (let n = 2; n < 2 + SUGGESTION_PROBE_LIMIT && suggestions.length < max; n += 1) {
+    const suffix = `-${n}`;
+    // Truncating the stem keeps long names within the pattern's length limit
+    // instead of silently producing candidates that validateName would reject.
+    const candidate = `${stem.slice(0, NAME_STEM_MAX_LENGTH - suffix.length)}${suffix}${extension}`;
+    if (!validateName(candidate).ok) {
+      continue;
+    }
+
+    if (!(await isTaken(candidate))) {
+      suggestions.push(candidate);
+    }
+  }
+
+  return suggestions;
+}

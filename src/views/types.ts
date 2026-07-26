@@ -19,4 +19,9 @@ export type ArtifactListItem = {
   visibilityChangedAt: string | null;
   /** 閲覧URL */
   url: string;
+  /**
+   * Access保護下で所有者が自分のアーティファクトを開くためのリンク。
+   * 画面だけが使う値で、`GET /_app/api/artifacts` の応答には含めない。
+   */
+  ownerViewUrl?: string;
 };

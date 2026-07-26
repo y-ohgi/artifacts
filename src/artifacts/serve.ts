@@ -29,6 +29,78 @@ export function objectKey(uid: string, name: string): string {
   return `${uid}/${name}`;
 }
 
+/** Access-protected path that serves an artifact to its owner. */
+export const OWNER_VIEW_PATH = "/_auth/view";
+
+/** Link an owner can follow to read their own artifact through Access. */
+export function ownerViewPath(uid: string, name: string): string {
+  const target = `/${uid}/${encodeURIComponent(name)}`;
+  return `${OWNER_VIEW_PATH}?target=${encodeURIComponent(target)}`;
+}
+
+/** Shape `target` must have: an absolute path inside this host, nothing else. */
+const TARGET_PATTERN = new RegExp(`^/([a-z0-9]{${UID_LENGTH}})/([^/?#]+)$`);
+
+/**
+ * Serves an artifact to its owner from behind Access (`GET /_auth/view`).
+ *
+ * This is the fallback for the case where `CF_Authorization` does not reach the
+ * unprotected delivery path: here the request has passed through an Access
+ * application, so `Cf-Access-Jwt-Assertion` is guaranteed to be present. It is
+ * also what the list screen links to, so owner access to a private artifact
+ * never depends on cookie behaviour we cannot observe.
+ *
+ * `target` is restricted to `/<uid>/<name>` inside this host. Protocol-relative
+ * values, absolute URLs and anything containing `..` are rejected, so this can
+ * never become an open redirect or a path traversal.
+ */
+export async function serveOwnerView(
+  env: AppEnv,
+  request: Request,
+  target: string | undefined,
+): Promise<Response> {
+  if (target === undefined || target.startsWith("//") || target.includes("..")) {
+    return notFound();
+  }
+
+  const match = TARGET_PATTERN.exec(target);
+  if (match === null) {
+    return notFound();
+  }
+
+  const uid = match[1] as string;
+  let name: string;
+  try {
+    name = decodeURIComponent(match[2] as string);
+  } catch {
+    // Malformed percent-encoding. Indistinguishable from a missing artifact.
+    return notFound();
+  }
+
+  if (!validateName(name).ok) {
+    return notFound();
+  }
+
+  // The owner check is unconditional: this path exists for owners only, so a
+  // public artifact is still a 404 here (it is readable at its canonical URL).
+  const owner = await resolveOwner(env, request);
+  if (!owner.ok || owner.uid !== uid) {
+    return notFound();
+  }
+
+  const artifact = await findArtifact(env.DB, uid, name);
+  if (artifact === null) {
+    return notFound();
+  }
+
+  const object = await env.ARTIFACTS.get(objectKey(uid, name));
+  if (object === null) {
+    return notFound();
+  }
+
+  return new Response(object.body, { status: 200, headers: artifactHeaders() });
+}
+
 /**
  * Serves `/<uid>/<name>.html` (FR-011, FR-012, FR-023, FR-024, FR-026).
  *
