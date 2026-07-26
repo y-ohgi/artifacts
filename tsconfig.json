@@ -4,7 +4,7 @@
     "lib": ["ES2022"],
     "module": "ESNext",
     "moduleResolution": "bundler",
-    "types": ["./worker-configuration.d.ts", "@cloudflare/vitest-pool-workers/types"],
+    "types": ["node", "./worker-configuration.d.ts", "@cloudflare/vitest-pool-workers/types"],
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx",
     "strict": true,
