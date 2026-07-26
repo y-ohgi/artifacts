@@ -13,6 +13,29 @@ description: "Task list for HTMLアーティファクト共有サイト"
 
 **Organization**: タスクはUser Story単位にまとめ、各ストーリーを独立して実装・検証できるようにする。
 
+## 実装状況(2026-07-26 時点)
+
+69タスクのうち28件完了。dev環境へデプロイ済み: `https://artifacts-dev.ohgi-211.workers.dev`
+
+- Phase 1 Setup: 完了(T001〜T005)
+- Phase 2 Foundational: T006〜T015・T019 完了。**T016〜T018 は未完了**
+- Phase 3 US1: T020〜T027 完了。T028 は自動テストのみ完了(実機シナリオはAccess有効化待ち)
+- Phase 4 US2: T029〜T032 完了。T033 は同様に実機シナリオ待ち
+- Phase 5〜9: 未着手。ただしUS5のうち公開切替エンドポイントと配信の公開分岐は、一覧画面がUIを持つため先行実装済み(テストは未整備)
+
+検証済み: `npx tsc --noEmit` クリーン、`npm test` 81件成功、デプロイ環境で `/` の302・アーティファクトの404の完全一致・`Cache-Control: no-store`・`Content-Security-Policy: sandbox` を確認。
+
+MVPを利用可能にするために残っている作業(ユーザー操作が必要):
+
+1. Cloudflareダッシュボードで Workers & Pages → `artifacts-dev` → Settings → Domains & Routes → workers.dev の項目で Cloudflare Access を有効化する
+2. 生成された Access application の AUD タグとチームドメインを控える
+3. `npx wrangler secret put ACCESS_TEAM_DOMAIN --env dev` と `npx wrangler secret put ACCESS_AUD --env dev` を設定する
+4. 自分のメールアドレスで `users` に uid を登録する(手順は [quickstart.md](./quickstart.md) の手順4)
+
+現状 `/_app/` は `500` で「認証設定が未完了です」を返す。これは意図した fail closed の挙動で、`ACCESS_TEAM_DOMAIN` と `ACCESS_AUD` が揃うまで認証をすり抜ける経路が存在しないことを示している。
+
+なおT016はカスタムドメイン前提でパスを2つ保護する内容だが、dev環境はworkers.devのOne-click Accessを使うためURL全体の保護になる。MVPのスコープは全アーティファクトが非公開のUS1なので要件と矛盾しない。パス単位の保護境界はカスタムドメイン段階で必要になる。
+
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: 並列実行可能(別ファイル、未完了タスクへの依存なし)
@@ -29,11 +52,11 @@ description: "Task list for HTMLアーティファクト共有サイト"
 
 **Purpose**: プロジェクトの初期化と基本構造
 
-- [ ] T001 リポジトリ直下に `package.json` を作成し、承認済みの依存(`hono`、`jose`)とdevDependencies(`wrangler`、`vitest`、`@cloudflare/vitest-pool-workers`、`typescript`、`@cloudflare/workers-types`)を宣言する
-- [ ] T002 [P] リポジトリ直下に `tsconfig.json` を作成し、Workers types と Hono のJSX(`jsxImportSource: "hono/jsx"`)を設定する
-- [ ] T003 [P] リポジトリ直下に `vitest.config.ts` を作成し、`@cloudflare/vitest-pool-workers/config` の `defineWorkersConfig` でR2・D1バインディングをテストへ渡す
-- [ ] T004 Cloudflareリソースを作成する(`wrangler r2 bucket create artifacts-html`、`wrangler d1 create artifacts-meta`)。出力された `database_id` を含むバインディングをリポジトリ直下の `wrangler.jsonc` に記述する
-- [ ] T005 [P] リポジトリ直下の `.gitignore` に `node_modules/`、`.wrangler/`、`.dev.vars` を追加し、`.dev.vars.example` にプレースホルダ値のみで `ACCESS_TEAM_DOMAIN` / `ACCESS_AUD_APP` / `ACCESS_AUD_AUTH` を列挙する(実値は絶対にコミットしない)
+- [X] T001 リポジトリ直下に `package.json` を作成し、承認済みの依存(`hono`、`jose`)とdevDependencies(`wrangler`、`vitest`、`@cloudflare/vitest-pool-workers`、`typescript`、`@cloudflare/workers-types`)を宣言する
+- [X] T002 [P] リポジトリ直下に `tsconfig.json` を作成し、Workers types と Hono のJSX(`jsxImportSource: "hono/jsx"`)を設定する
+- [X] T003 [P] リポジトリ直下に `vitest.config.ts` を作成し、`@cloudflare/vitest-pool-workers/config` の `defineWorkersConfig` でR2・D1バインディングをテストへ渡す
+- [X] T004 Cloudflareリソースを作成する(`wrangler r2 bucket create artifacts-html`、`wrangler d1 create artifacts-meta`)。出力された `database_id` を含むバインディングをリポジトリ直下の `wrangler.jsonc` に記述する
+- [X] T005 [P] リポジトリ直下の `.gitignore` に `node_modules/`、`.wrangler/`、`.dev.vars` を追加し、`.dev.vars.example` にプレースホルダ値のみで `ACCESS_TEAM_DOMAIN` / `ACCESS_AUD_APP` / `ACCESS_AUD_AUTH` を列挙する(実値は絶対にコミットしない)
 
 ---
 
@@ -43,20 +66,20 @@ description: "Task list for HTMLアーティファクト共有サイト"
 
 **⚠️ CRITICAL**: このフェーズが完了するまでUser Storyの作業を開始できない
 
-- [ ] T006 `migrations/0001_init.sql` を作成し、[data-model.md](./data-model.md) の `users`・`artifacts` テーブル、CHECK制約、`visibility` のDEFAULT `'private'`、`idx_artifacts_uid_uploaded_at` を定義する。`users.uid TEXT PRIMARY KEY` がuidの保持と一意性を担保し(FR-033・FR-037)、`artifacts` の複合主キー `(uid, name)` が名前空間ごとの一意性を担保する(FR-039)
-- [ ] T007 マイグレーションを適用する(`wrangler d1 migrations apply artifacts-meta --local` と `--remote`)。適用後にテーブル定義を `wrangler d1 execute` で確認する
-- [ ] T008 [P] `src/headers.ts` を作成し、管理画面用とアーティファクト用の2つのヘッダプロファイルを [contracts/http-api.md](./contracts/http-api.md) の共通レスポンスヘッダのとおりに定義する
-- [ ] T009 [P] `src/errors.ts` を作成し、`{ error: { code, message, details? } }` のJSONエラー封筒とコード定数(`invalid_name`、`not_html`、`name_conflict`、`too_large`、`cross_origin`、`storage_failed`、`invalid_visibility`、`not_found`)を定義する
-- [ ] T010 [P] `src/ids.ts` を作成し、`generateUid()`(`a-z0-9` のみ10文字、`crypto.getRandomValues` + rejection sampling)と `validateName()`(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\.html?$`、`..` 禁止、`_` 始まり禁止)を実装する(FR-034・FR-035・FR-036・FR-006)
-- [ ] T011 [P] `tests/unit/ids.test.ts` を作成し、uidの文字集合・長さ・大量生成時の重複なし・剰余バイアスの偏りがないこと、および `validateName()` が [data-model.md](./data-model.md) の拒否例(`../etc/passwd`、`my report.html`、`レポート.html`、`_internal.html`、`report.txt`、`report`)をすべて拒否することを検証する
-- [ ] T012 [P] `tests/unit/headers.test.ts` を作成し、アーティファクト用プロファイルに `Cache-Control: no-store` と `Content-Security-Policy: sandbox allow-scripts allow-popups allow-forms allow-modals` が含まれることを検証する
-- [ ] T013 `src/db.ts` を作成し、D1への型付きクエリ(ユーザー取得、アーティファクトの取得・一覧・登録・公開状態更新)を実装する。すべてのクエリが `uid` を条件に含むことを関数シグネチャで強制する
-- [ ] T014 `src/auth.ts` を作成し、`jose` で `Cf-Access-Jwt-Assertion` のJWTを検証する(JWKSを `https://<team>.cloudflareaccess.com/cdn-cgi/access/certs` からTTL付きキャッシュで取得、`kid` 照合、`aud`・`iss` 検証)。検証済みemailから `users` を引いてuidを解決する関数を含める
-- [ ] T015 `src/index.ts` を作成し、Honoのルートテーブルで [contracts/http-api.md](./contracts/http-api.md) の保護境界を1箇所に表現する。`GET /` は `302 /_app/` を返す。この時点では各ハンドラは未実装のスタブでよい
+- [X] T006 `migrations/0001_init.sql` を作成し、[data-model.md](./data-model.md) の `users`・`artifacts` テーブル、CHECK制約、`visibility` のDEFAULT `'private'`、`idx_artifacts_uid_uploaded_at` を定義する。`users.uid TEXT PRIMARY KEY` がuidの保持と一意性を担保し(FR-033・FR-037)、`artifacts` の複合主キー `(uid, name)` が名前空間ごとの一意性を担保する(FR-039)
+- [X] T007 マイグレーションを適用する(`wrangler d1 migrations apply artifacts-meta --local` と `--remote`)。適用後にテーブル定義を `wrangler d1 execute` で確認する
+- [X] T008 [P] `src/headers.ts` を作成し、管理画面用とアーティファクト用の2つのヘッダプロファイルを [contracts/http-api.md](./contracts/http-api.md) の共通レスポンスヘッダのとおりに定義する
+- [X] T009 [P] `src/errors.ts` を作成し、`{ error: { code, message, details? } }` のJSONエラー封筒とコード定数(`invalid_name`、`not_html`、`name_conflict`、`too_large`、`cross_origin`、`storage_failed`、`invalid_visibility`、`not_found`)を定義する
+- [X] T010 [P] `src/ids.ts` を作成し、`generateUid()`(`a-z0-9` のみ10文字、`crypto.getRandomValues` + rejection sampling)と `validateName()`(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}\.html?$`、`..` 禁止、`_` 始まり禁止)を実装する(FR-034・FR-035・FR-036・FR-006)
+- [X] T011 [P] `tests/unit/ids.test.ts` を作成し、uidの文字集合・長さ・大量生成時の重複なし・剰余バイアスの偏りがないこと、および `validateName()` が [data-model.md](./data-model.md) の拒否例(`../etc/passwd`、`my report.html`、`レポート.html`、`_internal.html`、`report.txt`、`report`)をすべて拒否することを検証する
+- [X] T012 [P] `tests/unit/headers.test.ts` を作成し、アーティファクト用プロファイルに `Cache-Control: no-store` と `Content-Security-Policy: sandbox allow-scripts allow-popups allow-forms allow-modals` が含まれることを検証する
+- [X] T013 `src/db.ts` を作成し、D1への型付きクエリ(ユーザー取得、アーティファクトの取得・一覧・登録・公開状態更新)を実装する。すべてのクエリが `uid` を条件に含むことを関数シグネチャで強制する
+- [X] T014 `src/auth.ts` を作成し、`jose` で `Cf-Access-Jwt-Assertion` のJWTを検証する(JWKSを `https://<team>.cloudflareaccess.com/cdn-cgi/access/certs` からTTL付きキャッシュで取得、`kid` 照合、`aud`・`iss` 検証)。検証済みemailから `users` を引いてuidを解決する関数を含める
+- [X] T015 `src/index.ts` を作成し、Honoのルートテーブルで [contracts/http-api.md](./contracts/http-api.md) の保護境界を1箇所に表現する。`GET /` は `302 /_app/` を返す。この時点では各ハンドラは未実装のスタブでよい
 - [ ] T016 Cloudflare Zero Trustで self-hosted application を2つ作成する(`artifacts.<domain>/_app` 配下、`artifacts.<domain>/_auth` 配下)。rootパスは保護対象に含めない。AUDタグを控え、`wrangler secret put` で `ACCESS_TEAM_DOMAIN`・`ACCESS_AUD_APP`・`ACCESS_AUD_AUTH` を設定する
 - [ ] T017 [research.md](./research.md) セクション4の未確認事項を検証する。一時的なデバッグルートで `request.headers.get('cookie')` のcookie名のみを出力し(値はマスクする)、`/_app/` で認証後にAccess非保護パスへアクセスして `wrangler tail` で `CF_Authorization` の到達を確認する。結果を `research.md` に反映し、デバッグルートを削除する
 - [ ] T018 T017の結果に応じて `src/auth.ts` に非保護パスでの所有者判定を実装する。cookieが届く場合はcookie内JWTの検証、届かない場合は `/_auth/view` へのフォールバック(`target` は自ホスト内の相対パスのみ許可し、`//`・スキーム付きURL・`..` を拒否する)
-- [ ] T019 [P] `package.json` に `dev`、`deploy`、`test`、`migrate:local`、`migrate:remote` のnpmスクリプトを追加する
+- [X] T019 [P] `package.json` に `dev`、`deploy`、`test`、`migrate:local`、`migrate:remote` のnpmスクリプトを追加する
 
 **Checkpoint**: 基盤が整い、User Storyの実装を開始できる
 
@@ -72,17 +95,17 @@ description: "Task list for HTMLアーティファクト共有サイト"
 
 > **NOTE**: これらのテストを先に書き、実装前に失敗することを確認する
 
-- [ ] T020 [P] [US1] `tests/integration/upload.test.ts` を作成し、`POST /_app/api/artifacts` が `201` を返し、応答の `visibility` が `private`、`url` が `/<uid>/<name>.html` の形であることを検証する(FR-010・FR-022)
-- [ ] T021 [P] [US1] `tests/integration/upload-reject.test.ts` を作成し、非HTML(拡張子・Content-Type・先頭バイトの各パターン)が `400 not_html`、10 MB超が `413 too_large`、規則違反の名前が `400 invalid_name` になることを検証する(FR-002・FR-003・FR-006)
-- [ ] T022 [P] [US1] `tests/integration/serve-owner.test.ts` を作成し、非公開アーティファクトを所有者が取得したときにアップロードしたバイト列と1バイトも違わない本文が返り、非所有者には `404` が返ることを検証する(FR-012・FR-023・SC-008)
+- [X] T020 [P] [US1] `tests/integration/upload.test.ts` を作成し、`POST /_app/api/artifacts` が `201` を返し、応答の `visibility` が `private`、`url` が `/<uid>/<name>.html` の形であることを検証する(FR-010・FR-022)
+- [X] T021 [P] [US1] `tests/integration/upload-reject.test.ts` を作成し、非HTML(拡張子・Content-Type・先頭バイトの各パターン)が `400 not_html`、10 MB超が `413 too_large`、規則違反の名前が `400 invalid_name` になることを検証する(FR-002・FR-003・FR-006)
+- [X] T022 [P] [US1] `tests/integration/serve-owner.test.ts` を作成し、非公開アーティファクトを所有者が取得したときにアップロードしたバイト列と1バイトも違わない本文が返り、非所有者には `404` が返ることを検証する(FR-012・FR-023・SC-008)
 
 ### Implementation for User Story 1
 
-- [ ] T023 [P] [US1] `src/views/layout.tsx` を作成し、全管理画面で共有するレイアウトとヘッダ(アップロードボタンを含む)を実装する(FR-018)
-- [ ] T024 [US1] `src/views/upload.tsx` を作成し、ファイル選択、名前の初期値付き提示、確定操作、成功時の閲覧URL表示を実装する(FR-004・FR-010)
-- [ ] T025 [US1] `src/artifacts/upload.ts` を作成し、拡張子・Content-Type・先頭バイトsniff(`<!doctype html` / `<html`)の3点検証、10 MB上限、R2 put → D1 insert の順の書き込み、D1失敗時のR2オブジェクト削除を実装する(FR-001〜FR-003・FR-009)
-- [ ] T026 [US1] `src/artifacts/serve.ts` を作成し、`GET /:uid/:name` でD1を引いて非公開かつ所有者のときのみ本文を返し、それ以外は固定の `404` を返す。応答ヘッダは `src/headers.ts` のアーティファクト用プロファイルを使う(FR-011・FR-012・FR-023・FR-024)
-- [ ] T027 [US1] `src/index.ts` に `GET /_app/upload`、`POST /_app/api/artifacts`、`GET /:uid/:name` を配線し、APIハンドラで `Sec-Fetch-Site` と `Origin` を検証する
+- [X] T023 [P] [US1] `src/views/layout.tsx` を作成し、全管理画面で共有するレイアウトとヘッダ(アップロードボタンを含む)を実装する(FR-018)
+- [X] T024 [US1] `src/views/upload.tsx` を作成し、ファイル選択、名前の初期値付き提示、確定操作、成功時の閲覧URL表示を実装する(FR-004・FR-010)
+- [X] T025 [US1] `src/artifacts/upload.ts` を作成し、拡張子・Content-Type・先頭バイトsniff(`<!doctype html` / `<html`)の3点検証、10 MB上限、R2 put → D1 insert の順の書き込み、D1失敗時のR2オブジェクト削除を実装する(FR-001〜FR-003・FR-009)
+- [X] T026 [US1] `src/artifacts/serve.ts` を作成し、`GET /:uid/:name` でD1を引いて非公開かつ所有者のときのみ本文を返し、それ以外は固定の `404` を返す。応答ヘッダは `src/headers.ts` のアーティファクト用プロファイルを使う(FR-011・FR-012・FR-023・FR-024)
+- [X] T027 [US1] `src/index.ts` に `GET /_app/upload`、`POST /_app/api/artifacts`、`GET /:uid/:name` を配線し、APIハンドラで `Sec-Fetch-Site` と `Origin` を検証する
 - [ ] T028 [US1] `npm test` で T020〜T022 を実行して全件成功を確認し、`wrangler deploy` 後に [quickstart.md](./quickstart.md) の US1 シナリオ(手順1〜6)を実機で確認する
 
 **Checkpoint**: User Story 1 が単独で機能し、独立に検証できる状態になる
@@ -97,13 +120,13 @@ description: "Task list for HTMLアーティファクト共有サイト"
 
 ### Tests for User Story 2
 
-- [ ] T029 [P] [US2] `tests/integration/list.test.ts` を作成し、`GET /_app/api/artifacts` が `uploadedAt` 降順で自分のuidの分だけを返すこと、0件時に `{"artifacts": []}` を返すことを検証する(FR-013・FR-015・FR-016・FR-038)
+- [X] T029 [P] [US2] `tests/integration/list.test.ts` を作成し、`GET /_app/api/artifacts` が `uploadedAt` 降順で自分のuidの分だけを返すこと、0件時に `{"artifacts": []}` を返すことを検証する(FR-013・FR-015・FR-016・FR-038)
 
 ### Implementation for User Story 2
 
-- [ ] T030 [US2] `src/artifacts/list.ts` を作成し、`src/db.ts` 経由で `WHERE uid = ? ORDER BY uploaded_at DESC` の一覧を取得する(FR-013・FR-015)
-- [ ] T031 [US2] `src/views/list.tsx` を作成し、名前・アップロード日時・閲覧URLへのリンクを持つ一覧と、0件時の空状態(最初のアップロードを促す案内)を実装する(FR-014・FR-016)
-- [ ] T032 [US2] `src/index.ts` に `GET /_app/` と `GET /_app/api/artifacts` を配線する。uidは認証から解決した値のみを使い、クエリパラメータで受け取らない(FR-038)
+- [X] T030 [US2] `src/artifacts/list.ts` を作成し、`src/db.ts` 経由で `WHERE uid = ? ORDER BY uploaded_at DESC` の一覧を取得する(FR-013・FR-015)
+- [X] T031 [US2] `src/views/list.tsx` を作成し、名前・アップロード日時・閲覧URLへのリンクを持つ一覧と、0件時の空状態(最初のアップロードを促す案内)を実装する(FR-014・FR-016)
+- [X] T032 [US2] `src/index.ts` に `GET /_app/` と `GET /_app/api/artifacts` を配線する。uidは認証から解決した値のみを使い、クエリパラメータで受け取らない(FR-038)
 - [ ] T033 [US2] `npm test` で T029 を実行し、[quickstart.md](./quickstart.md) の US2 シナリオ(手順1〜5)を実機で確認する
 
 **Checkpoint**: User Story 1 と 2 がそれぞれ独立に機能する
