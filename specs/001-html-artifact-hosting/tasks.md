@@ -17,7 +17,7 @@ description: "Task list for HTMLアーティファクト共有サイト"
 
 69タスクのうち66件完了。残る3件はいずれもCloudflare側の操作か人の目による確認を要するもので、コード上の未実装は無い。実測の記録は [validation-report.md](./validation-report.md) を正とする。
 
-dev環境へデプロイ済み: `https://artifacts-dev.ohgi-211.workers.dev`(Version ID `d4c57966-ceb0-4acb-a445-142a5d7e84a9`)
+dev環境へデプロイ済み: `https://artifacts-dev.ohgi-211.workers.dev`(Version ID `38b22369-0b3f-4bcc-a579-c69ab1056434`)
 
 - Phase 1 Setup: 完了(T001〜T005)
 - Phase 2 Foundational: T006〜T015・T018・T019 完了。**T016・T017 が未完了**
