@@ -21,20 +21,20 @@
 ### 1. リソースを作成する
 
 ```sh
-wrangler r2 bucket create artifacts-html
-wrangler d1 create artifacts-meta
+wrangler r2 bucket create artifacts-html-dev
+wrangler d1 create artifacts-meta-dev
 ```
 
-`wrangler d1 create` が出力する `database_id` を `wrangler.jsonc` のD1バインディングへ書き込む。
+`wrangler d1 create` が出力する `database_id` を `wrangler.jsonc` のD1バインディングへ書き込む。実装したdev環境のリソース名は `artifacts-html-dev` / `artifacts-meta-dev` で、`wrangler` の各コマンドには `--env dev` が必要になる。
 
 ### 2. スキーマを適用する
 
 ```sh
 # ローカル(テスト・開発用)
-wrangler d1 migrations apply artifacts-meta --local
+npm run migrate:local
 
-# 本番
-wrangler d1 migrations apply artifacts-meta --remote
+# デプロイ環境
+npm run migrate:remote
 ```
 
 ### 3. Access applicationを作成する
@@ -46,12 +46,13 @@ Zero Trustダッシュボードで self-hosted application を作成する。保
 
 **重要**: `artifacts.example.com` のrootパスを保護対象にしてはならない。rootを保護すると配下のすべてのサブパスに及び、公開アーティファクトへの未認証アクセスが成立しなくなる。
 
-各applicationのAUDタグを控え、Workerの環境変数へ設定する。
+dev環境は独自ドメインを持たないため、workers.dev のURL全体を保護する形で足りる(Workers & Pages → `artifacts-dev` → Settings → Domains & Routes)。この場合も全アーティファクトが非公開である限り要件と矛盾しないが、公開機能を使うにはカスタムドメインへ移し、上のパス単位の保護へ切り替える必要がある。
+
+AUDタグを控え、Workerのsecretへ設定する。実装は単一の `ACCESS_AUD` を参照する(`/_app` と `/_auth` を別applicationへ分けてAUDを2つ持つかは、未確認事項の結論が出た後の判断となる。理由は [research.md セクション4](./research.md) を参照)。
 
 ```sh
-wrangler secret put ACCESS_AUD_APP
-wrangler secret put ACCESS_AUD_AUTH
-wrangler secret put ACCESS_TEAM_DOMAIN   # 例: myteam.cloudflareaccess.com
+wrangler secret put ACCESS_TEAM_DOMAIN --env dev   # 例: myteam.cloudflareaccess.com
+wrangler secret put ACCESS_AUD --env dev
 ```
 
 ### 4. 自分のuidを発行する
@@ -66,7 +67,7 @@ node -e 'const a="abcdefghijklmnopqrstuvwxyz0123456789";const b=require("crypto"
 生成した値でユーザーを登録する。
 
 ```sh
-wrangler d1 execute artifacts-meta --remote \
+wrangler d1 execute artifacts-meta-dev --env dev --remote \
   --command "INSERT INTO users (uid, email, created_at) VALUES ('<uid>', '<自分のメールアドレス>', '2026-07-26T00:00:00.000Z')"
 ```
 
@@ -75,19 +76,32 @@ wrangler d1 execute artifacts-meta --remote \
 ### 5. デプロイする
 
 ```sh
-wrangler deploy
+npm run deploy
 ```
 
 ## 自動テスト
 
 ```sh
 npm install
-npm test              # Vitest + @cloudflare/vitest-pool-workers
+npm run test:all      # typecheck → 単体・統合 → E2E
 ```
 
-カバー範囲は[contracts/http-api.md](./contracts/http-api.md)の「契約テストの観点」を参照。Accessが介在する経路(JWT検証、ログアウト、未認証の遮断)はローカルで再現できないため、以下の手動シナリオで確認する。
+内訳は次のとおり。
+
+- `npm test` — Workerを直接呼ぶ単体・統合テスト。カバー範囲は[contracts/http-api.md](./contracts/http-api.md)の「契約テストの観点」。JWT検証(署名・`aud`・`iss`・期限・cookie経路)も、鍵をテスト内で生成しJWKSエンドポイントを差し替えることで再現している
+- `npm run test:e2e` — `wrangler dev` を3つ起動し、所有者・2人目の利用者・認証情報を持たない訪問者の3つの立場から同じデータを見るE2E。下の検証シナリオのうちAccess自体に依存しない項目を自動化している
+- デプロイ環境への未認証スモークは環境変数を渡したときだけ走る(`tests/e2e/remote.test.ts`、実行例は[README](../../README.md))
 
 ## 検証シナリオ
+
+US1〜US6のうち、以下は `npm run test:e2e` が自動で確認する。手で実行するのは、Accessの認証画面・ログアウト・トークン失効に関わる項目(US4の手順1〜5)と、ブラウザでの見た目の確認に限る。
+
+- US1: 手順1〜6すべて
+- US2: 手順1〜4(手順5の空状態は2人目の利用者側で確認)
+- US3: 手順1〜6すべて
+- US4: 未認証が管理画面・管理APIから内容を得られないこと(手順1・2に相当)
+- US5: 手順1〜9すべて(手順3の404同一性の比較を含む)
+- US6: 手順1〜6すべて
 
 ### US1: HTMLをアップロードして閲覧する
 
@@ -191,7 +205,7 @@ npm test              # Vitest + @cloudflare/vitest-pool-workers
 
 ## 未確認事項の検証
 
-[research.md セクション4](./research.md)の未確認事項を、この段階で必ず確認する。
+[research.md セクション4](./research.md)の未確認事項。**実装では両方の分岐を用意済みで、この確認は所有者の閲覧をブロックしない**(cookieが届けば正規URLで開け、届かなくても一覧の「所有者として開く」から `/_auth/view` 経由で開ける)。確認できたら research.md の「実装での結論」を更新する。
 
 `CF_Authorization` cookieがAccess非保護パスへのリクエストでWorkerに届くかを調べる。
 
@@ -218,7 +232,8 @@ wrangler tail
 
 ## Done判定
 
-- 上記のUS1〜US6のすべての期待結果が観測できた
-- `npm test` が全件成功した
-- 未確認事項の検証が完了し、採用した方式が[research.md](./research.md)に反映された
+- 上記のUS1〜US6のすべての期待結果が観測できた(自動化された範囲は `npm run test:e2e` の成功で代替する)
+- `npm run test:all`(typecheck・単体・統合・E2E)が全件成功した
+- 未確認事項について、採用した方式が[research.md](./research.md)に反映された
 - デバッグ用の一時的なコードがリポジトリに残っていない
+- 秘密情報がリポジトリへ混入していない(`.dev.vars` が追跡対象外、AUDタグ・チームドメインの実値が無い)
