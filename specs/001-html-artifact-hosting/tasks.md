@@ -9,7 +9,7 @@ description: "Task list for HTMLアーティファクト共有サイト"
 
 **Prerequisites**: [plan.md](./plan.md)、[spec.md](./spec.md)、[research.md](./research.md)、[data-model.md](./data-model.md)、[contracts/http-api.md](./contracts/http-api.md)、[quickstart.md](./quickstart.md)
 
-**Tests**: テストタスクを含める。[plan.md](./plan.md) がVitest + `@cloudflare/vitest-pool-workers` をテスト方針として確定させており、[contracts/http-api.md](./contracts/http-api.md) に契約テストの観点が定義済みで、リポジトリの `AGENTS.md` が「コードを追加・変更する際にはテストを追加・更新する」「検証前に完了を報告しない」を要求しているため。
+**Tests**: テストタスクを含める。[plan.md](./plan.md) がVitest + `@cloudflare/vitest-pool-workers` をテスト方針として確定させており、[contracts/http-api.md](./contracts/http-api.md) に契約テストの観点が定義済みで、グローバル設定として読み込まれる共通の作業規約が「コードを追加・変更する際にはテストを追加・更新する」「検証前に完了を報告しない」を要求しているため(リポジトリ直下の `AGENTS.md` ではない。両者の関係は同ファイルの「共通規約との関係」を参照)。
 
 **Organization**: タスクはUser Story単位にまとめ、各ストーリーを独立して実装・検証できるようにする。
 
@@ -325,7 +325,8 @@ Phase 1 → Phase 2 → US1 → US2 → US4 → US3 → US5 → US6 → Phase 9
 - `[P]` は別ファイルで依存関係がないことを意味する。同一ファイルを触るタスクの順序は「同一ファイルを触るタスク」節を正とする
 - `[Story]` ラベルはトレーサビリティのためにUser Storyへ紐付ける
 - テストは実装前に失敗することを確認する
-- commitは機能の粒度ごとに分ける(`AGENTS.md`)。タスク単位または論理的なまとまりごとにcommitする
-- 20行を超える差分や複数ファイルにまたがる変更に着手する前に、対象ファイルと方針を提示して承認を得る(`AGENTS.md`)
-- 認証・認可に関わるタスク(T014、T016、T018、T042〜T044、T050、T059、T060)は実装前に方針を提示して承認を得る(`AGENTS.md`)
+- 以下3点は、グローバル設定として読み込まれる共通の作業規約に由来する(リポジトリ直下の `AGENTS.md` ではない)
+  - commitは機能の粒度ごとに分ける。タスク単位または論理的なまとまりごとにcommitする
+  - 20行を超える差分や複数ファイルにまたがる変更に着手する前に、対象ファイルと方針を提示して承認を得る
+  - 認証・認可に関わるタスク(T014、T016、T018、T042〜T044、T050、T059、T060)は実装前に方針を提示して承認を得る
 - 各Checkpointで停止し、そのストーリーを単独で検証できる
