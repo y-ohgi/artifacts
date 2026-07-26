@@ -13,26 +13,36 @@ description: "Task list for HTMLアーティファクト共有サイト"
 
 **Organization**: タスクはUser Story単位にまとめ、各ストーリーを独立して実装・検証できるようにする。
 
-## 実装状況(2026-07-26 時点)
+## 実装状況(2026-07-27 時点)
 
-69タスクのうち28件完了。dev環境へデプロイ済み: `https://artifacts-dev.ohgi-211.workers.dev`
+69タスクのうち41件完了。dev環境へデプロイ済み: `https://artifacts-dev.ohgi-211.workers.dev`
 
 - Phase 1 Setup: 完了(T001〜T005)
 - Phase 2 Foundational: T006〜T015・T019 完了。**T016〜T018 は未完了**
 - Phase 3 US1: T020〜T027 完了。T028 は自動テストのみ完了(実機シナリオはAccess有効化待ち)
 - Phase 4 US2: T029〜T032 完了。T033 は同様に実機シナリオ待ち
-- Phase 5〜9: 未着手。ただしUS5のうち公開切替エンドポイントと配信の公開分岐は、一覧画面がUIを持つため先行実装済み(テストは未整備)
+- Phase 5 US3: T036〜T038 完了。T034(候補の検証部分)・T035・T039 が未完了
+- Phase 6 US4: T042・T043 完了。T040・T041・T044・T045 は未着手
+- Phase 7 US5: T050〜T055 完了。統合テスト T046〜T049 と実機検証 T056 が未完了
+- Phase 8 US6: T059・T060 完了。T057・T058・T061・T062 は未着手
+- Phase 9 Polish: 未着手(`README.md` が空のままであることを含む)
 
-検証済み: `npx tsc --noEmit` クリーン、`npm test` 81件成功、デプロイ環境で `/` の302・アーティファクトの404の完全一致・`Cache-Control: no-store`・`Content-Security-Policy: sandbox` を確認。
+US5の実装がUS3・US4より先に進んでいるのは、一覧画面が公開切替のUIを持つため配信・切替の実装を先に必要としたから。Implementation Strategy の推奨順とは異なるが、既定非公開はスキーマのDEFAULTで担保されているため情報露出は起きていない。
 
-MVPを利用可能にするために残っている作業(ユーザー操作が必要):
+### 検証済みの事実(2026-07-27 に実行)
+
+- `npx tsc --noEmit`: エラーなし
+- `npm test`: 5ファイル・81件すべて成功
+- デプロイ環境: `GET /` が `302 /_app/`、`GET /_app/` が `401` + `{"error":{"code":"not_found","message":"認証が必要です。"}}`
+
+### MVPを利用可能にするために残っている作業(ユーザー操作が必要)
 
 1. Cloudflareダッシュボードで Workers & Pages → `artifacts-dev` → Settings → Domains & Routes → workers.dev の項目で Cloudflare Access を有効化する
-2. 生成された Access application の AUD タグとチームドメインを控える
-3. `npx wrangler secret put ACCESS_TEAM_DOMAIN --env dev` と `npx wrangler secret put ACCESS_AUD --env dev` を設定する
-4. 自分のメールアドレスで `users` に uid を登録する(手順は [quickstart.md](./quickstart.md) の手順4)
+2. 自分のメールアドレスで `users` に uid を登録する(手順は [quickstart.md](./quickstart.md) の手順4)
 
-現状 `/_app/` は `500` で「認証設定が未完了です」を返す。これは意図した fail closed の挙動で、`ACCESS_TEAM_DOMAIN` と `ACCESS_AUD` が揃うまで認証をすり抜ける経路が存在しないことを示している。
+`ACCESS_TEAM_DOMAIN` と `ACCESS_AUD` は設定済みと判断している。デプロイ環境では `ENVIRONMENT` が常に `undefined` になり、その状態で両secretが未設定なら `src/auth.ts` は `misconfigured` を返して `500` になる。現在返るのが `401`(`unauthenticated`)であることがこれを示す。ただしsecretの値そのものは未確認。
+
+Access自体はまだ前段に入っていない。`/_app/` がAccessのログイン画面へのリダイレクトではなくWorker自身のJSON `401` を返しているため。`users` への uid 登録状況は、認証を通れないため未確認。
 
 なおT016はカスタムドメイン前提でパスを2つ保護する内容だが、dev環境はworkers.devのOne-click Accessを使うためURL全体の保護になる。MVPのスコープは全アーティファクトが非公開のUS1なので要件と矛盾しない。パス単位の保護境界はカスタムドメイン段階で必要になる。
 
