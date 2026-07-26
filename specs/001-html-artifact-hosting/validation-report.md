@@ -5,7 +5,8 @@
 ## 対象
 
 - dev環境: `https://artifacts-dev.ohgi-211.workers.dev`
-- Worker Version ID: `d4c57966-ceb0-4acb-a445-142a5d7e84a9`(2026-07-27 デプロイ)
+- Worker Version ID: `38b22369-0b3f-4bcc-a579-c69ab1056434`(2026-07-27、main へのマージ後に再デプロイ)
+  - 本レポートの計測は同一の `src/` を持つ `d4c57966-ceb0-4acb-a445-142a5d7e84a9` に対して行い、再デプロイ後に未認証スモーク6件を再実行して同じ結果を確認した
 - D1: `artifacts-meta-dev`(マイグレーション適用済み、`No migrations to apply!`)
 - R2: `artifacts-html-dev`
 
