@@ -5,3 +5,5 @@
 - planner: 生成計画を立て、方針(何を使い、何を使わないか、その理由)を明文化する
 - generator: 計画に従って成果物を生成する。1回に扱う量を制限し、step-summaryを残す
 - checker: 独立したコンテキストで成果物を検証する(生成と評価を同一コンテキストでやらせない)
+
+共通のsubagent(各種reviewer、research-agent、japanese-proofreader、critic-verifier、technical-writer、memory-curatorなど)は `~/.claude/agents/` に配置済みで、このリポジトリからそのまま呼び出せる。ここへ複製しない。ここに置くのはこのリポジトリ固有のsubagentだけとする。
