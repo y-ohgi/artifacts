@@ -287,37 +287,36 @@ Access自体はまだ前段に入っていない。`/_app/` がAccessのログ�
 
 - テストを先に書き、実装前に失敗することを確認する
 - `src/db.ts` などのデータアクセスを先に整え、その上でハンドラを実装する
-- ハンドラ実装後に `src/index.ts` へ配線する
+- ハンドラ実装後に `src/index.tsx` へ配線する
 - 各ストーリーの最後の検証タスク(T028、T033、T039、T045、T056、T062)を通過するまで次の優先度へ進まない
 
 ### 同一ファイルを触るタスク(並列にできない)
 
-- `src/artifacts/upload.ts`: T025 → T036
-- `src/artifacts/serve.ts`: T026 → T051 → T052 → T054 → T060
-- `src/views/list.tsx`: T031 → T053
-- `src/views/upload.tsx`: T024 → T037 → T038 → T044
-- `src/views/layout.tsx`: T023 → T042
-- `src/index.ts`: T015 → T027 → T032 → T043 → T055
-- `src/ids.ts`: T010 → T035
-- `src/auth.ts`: T014 → T018
+- `src/artifacts/upload.ts`: T025 → T036(いずれも完了)
+- `src/artifacts/serve.ts`: T026 → T051 → T052 → T054 → T060(すべて完了)
+- `src/views/list.tsx`: T031 → T053(いずれも完了)
+- `src/views/upload.tsx`: T024 → T037 → T038 → T044(T044のみ残り)
+- `src/views/layout.tsx`: T023 → T042(いずれも完了)
+- `src/index.tsx`: T015 → T027 → T032 → T043 → T055(すべて完了)
+- `src/ids.ts`: T010 → T035(T035が残り)
+- `src/auth.ts`: T014 → T018(T018が残り)
+- `tests/integration/us1.test.ts`: T020〜T022 → T029 → T034 → T046〜T049 → T057。統合テストを1ファイルに集約したため、テストタスクは並列に書けず追記順になる
 
 ### Parallel Opportunities
 
 - Phase 1の `[P]` タスク(T002、T003、T005)は並列実行できる
 - Phase 2の `[P]` タスク(T008〜T012、T019)は並列実行できる。T008〜T010は互いに独立した新規ファイル
-- 各ストーリーのテストタスク(`[P]` 付き)は互いに並列に書ける
+- ~~各ストーリーのテストタスク(`[P]` 付き)は互いに並列に書ける~~ 統合テストを `tests/integration/us1.test.ts` の1ファイルに集約したため、統合テストのタスクは並列に書けない。ユニットテストは引き続きファイルが分かれている
 - US1とUS4は触るファイルが重ならないため、Phase 2完了後に並列で進められる
 - Phase 9の `[P]` タスク(T063〜T065)は並列実行できる
 
 ---
 
-## Parallel Example: User Story 1
+## Parallel Example: User Story 1(実施済み)
 
 ```text
 # User Story 1 のテストをまとめて書く(実装前に失敗することを確認する)
-T020 tests/integration/upload.test.ts
-T021 tests/integration/upload-reject.test.ts
-T022 tests/integration/serve-owner.test.ts
+T020〜T022 tests/integration/us1.test.ts  ← 1ファイルに集約したため直列
 
 # レイアウトは他の実装と独立して進められる
 T023 src/views/layout.tsx
