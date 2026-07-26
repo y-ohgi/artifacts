@@ -77,7 +77,7 @@ Access自体はまだ前段に入っていない。`/_app/` がAccessのログ�
 - [X] T002 [P] リポジトリ直下に `tsconfig.json` を作成し、Workers types と Hono のJSX(`jsxImportSource: "hono/jsx"`)を設定する
 - [X] T003 [P] リポジトリ直下に `vitest.config.ts` を作成し、`@cloudflare/vitest-pool-workers/config` の `defineWorkersConfig` でR2・D1バインディングをテストへ渡す
 - [X] T004 Cloudflareリソースを作成する(`wrangler r2 bucket create artifacts-html`、`wrangler d1 create artifacts-meta`)。出力された `database_id` を含むバインディングをリポジトリ直下の `wrangler.jsonc` に記述する
-- [X] T005 [P] リポジトリ直下の `.gitignore` に `node_modules/`、`.wrangler/`、`.dev.vars` を追加し、`.dev.vars.example` にプレースホルダ値のみで `ACCESS_TEAM_DOMAIN` / `ACCESS_AUD_APP` / `ACCESS_AUD_AUTH` を列挙する(実値は絶対にコミットしない)
+- [X] T005 [P] リポジトリ直下の `.gitignore` に `node_modules/`、`.wrangler/`、`.dev.vars` を追加し、`.dev.vars.example` にプレースホルダ値のみで変数を列挙する(実値は絶対にコミットしない)。実装した変数は `ENVIRONMENT` / `DEV_OWNER_EMAIL` / `ACCESS_TEAM_DOMAIN` / `ACCESS_AUD`。AUDを2つに分けていない理由は「設計文書と実装の差分」を参照
 
 ---
 
@@ -96,8 +96,8 @@ Access自体はまだ前段に入っていない。`/_app/` がAccessのログ�
 - [X] T012 [P] `tests/unit/headers.test.ts` を作成し、アーティファクト用プロファイルに `Cache-Control: no-store` と `Content-Security-Policy: sandbox allow-scripts allow-popups allow-forms allow-modals` が含まれることを検証する
 - [X] T013 `src/db.ts` を作成し、D1への型付きクエリ(ユーザー取得、アーティファクトの取得・一覧・登録・公開状態更新)を実装する。すべてのクエリが `uid` を条件に含むことを関数シグネチャで強制する
 - [X] T014 `src/auth.ts` を作成し、`jose` で `Cf-Access-Jwt-Assertion` のJWTを検証する(JWKSを `https://<team>.cloudflareaccess.com/cdn-cgi/access/certs` からTTL付きキャッシュで取得、`kid` 照合、`aud`・`iss` 検証)。検証済みemailから `users` を引いてuidを解決する関数を含める
-- [X] T015 `src/index.ts` を作成し、Honoのルートテーブルで [contracts/http-api.md](./contracts/http-api.md) の保護境界を1箇所に表現する。`GET /` は `302 /_app/` を返す。この時点では各ハンドラは未実装のスタブでよい
-- [ ] T016 Cloudflare Zero Trustで self-hosted application を2つ作成する(`artifacts.<domain>/_app` 配下、`artifacts.<domain>/_auth` 配下)。rootパスは保護対象に含めない。AUDタグを控え、`wrangler secret put` で `ACCESS_TEAM_DOMAIN`・`ACCESS_AUD_APP`・`ACCESS_AUD_AUTH` を設定する
+- [X] T015 `src/index.tsx` を作成し、Honoのルートテーブルで [contracts/http-api.md](./contracts/http-api.md) の保護境界を1箇所に表現する。`GET /` は `302 /_app/` を返す。この時点では各ハンドラは未実装のスタブでよい
+- [ ] T016 Access application を作成し、`wrangler secret put` で `ACCESS_TEAM_DOMAIN`・`ACCESS_AUD` を設定する。**secretの設定は完了済みで、残っているのはapplication側の有効化**。dev環境は workers.dev の One-click Access を使うためURL全体の保護になる(Workers & Pages → `artifacts-dev` → Settings → Domains & Routes)。カスタムドメイン段階で self-hosted application を作り、`artifacts.<domain>/_app` 配下と `/_auth` 配下を保護してrootパスを対象外にする。`/_auth` を別applicationに分けてAUDを2つ持つかどうかはT017の結果で決める
 - [ ] T017 [research.md](./research.md) セクション4の未確認事項を検証する。一時的なデバッグルートで `request.headers.get('cookie')` のcookie名のみを出力し(値はマスクする)、`/_app/` で認証後にAccess非保護パスへアクセスして `wrangler tail` で `CF_Authorization` の到達を確認する。結果を `research.md` に反映し、デバッグルートを削除する
 - [ ] T018 T017の結果に応じて `src/auth.ts` に非保護パスでの所有者判定を実装する。cookieが届く場合はcookie内JWTの検証、届かない場合は `/_auth/view` へのフォールバック(`target` は自ホスト内の相対パスのみ許可し、`//`・スキーム付きURL・`..` を拒否する)
 - [X] T019 [P] `package.json` に `dev`、`deploy`、`test`、`migrate:local`、`migrate:remote` のnpmスクリプトを追加する
@@ -116,17 +116,19 @@ Access自体はまだ前段に入っていない。`/_app/` がAccessのログ�
 
 > **NOTE**: これらのテストを先に書き、実装前に失敗することを確認する
 
-- [X] T020 [P] [US1] `tests/integration/upload.test.ts` を作成し、`POST /_app/api/artifacts` が `201` を返し、応答の `visibility` が `private`、`url` が `/<uid>/<name>.html` の形であることを検証する(FR-010・FR-022)
-- [X] T021 [P] [US1] `tests/integration/upload-reject.test.ts` を作成し、非HTML(拡張子・Content-Type・先頭バイトの各パターン)が `400 not_html`、10 MB超が `413 too_large`、規則違反の名前が `400 invalid_name` になることを検証する(FR-002・FR-003・FR-006)
-- [X] T022 [P] [US1] `tests/integration/serve-owner.test.ts` を作成し、非公開アーティファクトを所有者が取得したときにアップロードしたバイト列と1バイトも違わない本文が返り、非所有者には `404` が返ることを検証する(FR-012・FR-023・SC-008)
+> **実装メモ**: T020〜T022 はいずれも `tests/integration/us1.test.ts` に実装した。個別ファイルには分けていない(理由は「設計文書と実装の差分」)。
+
+- [X] T020 [P] [US1] `POST /_app/api/artifacts` が `201` を返し、応答の `visibility` が `private`、`url` が `/<uid>/<name>.html` の形であることを検証する(FR-010・FR-022)
+- [X] T021 [P] [US1] 非HTML(拡張子・Content-Type・先頭バイトの各パターン)が `400 not_html`、10 MB超が `413 too_large`、規則違反の名前が `400 invalid_name` になることを検証する(FR-002・FR-003・FR-006)
+- [X] T022 [P] [US1] 非公開アーティファクトを所有者が取得したときにアップロードしたバイト列と1バイトも違わない本文が返り、非所有者には `404` が返ることを検証する(FR-012・FR-023・SC-008)
 
 ### Implementation for User Story 1
 
 - [X] T023 [P] [US1] `src/views/layout.tsx` を作成し、全管理画面で共有するレイアウトとヘッダ(アップロードボタンを含む)を実装する(FR-018)
 - [X] T024 [US1] `src/views/upload.tsx` を作成し、ファイル選択、名前の初期値付き提示、確定操作、成功時の閲覧URL表示を実装する(FR-004・FR-010)
-- [X] T025 [US1] `src/artifacts/upload.ts` を作成し、拡張子・Content-Type・先頭バイトsniff(`<!doctype html` / `<html`)の3点検証、10 MB上限、R2 put → D1 insert の順の書き込み、D1失敗時のR2オブジェクト削除を実装する(FR-001〜FR-003・FR-009)
+- [X] T025 [US1] `src/artifacts/upload.ts` を作成し、拡張子・Content-Type・先頭バイトsniff(`<!doctype html` / `<html`)の3点検証、10 MB上限、**D1 insert → R2 put の順**の書き込み、R2失敗時のD1予約行の削除を実装する(FR-001〜FR-003・FR-008・FR-009)。書き込み順を反転させた理由は「設計文書と実装の差分」を参照
 - [X] T026 [US1] `src/artifacts/serve.ts` を作成し、`GET /:uid/:name` でD1を引いて非公開かつ所有者のときのみ本文を返し、それ以外は固定の `404` を返す。応答ヘッダは `src/headers.ts` のアーティファクト用プロファイルを使う(FR-011・FR-012・FR-023・FR-024)
-- [X] T027 [US1] `src/index.ts` に `GET /_app/upload`、`POST /_app/api/artifacts`、`GET /:uid/:name` を配線し、APIハンドラで `Sec-Fetch-Site` と `Origin` を検証する
+- [X] T027 [US1] `src/index.tsx` に `GET /_app/upload`、`POST /_app/api/artifacts`、`GET /:uid/:name` を配線し、APIハンドラで `Sec-Fetch-Site` と `Origin` を検証する(`src/auth.ts` の `isSameOriginRequest()`)
 - [ ] T028 [US1] `npm test` で T020〜T022 を実行して全件成功を確認し、`wrangler deploy` 後に [quickstart.md](./quickstart.md) の US1 シナリオ(手順1〜6)を実機で確認する
 
 **Checkpoint**: User Story 1 が単独で機能し、独立に検証できる状態になる
@@ -141,13 +143,13 @@ Access自体はまだ前段に入っていない。`/_app/` がAccessのログ�
 
 ### Tests for User Story 2
 
-- [X] T029 [P] [US2] `tests/integration/list.test.ts` を作成し、`GET /_app/api/artifacts` が `uploadedAt` 降順で自分のuidの分だけを返すこと、0件時に `{"artifacts": []}` を返すことを検証する(FR-013・FR-015・FR-016・FR-038)
+- [X] T029 [P] [US2] `GET /_app/api/artifacts` が `uploadedAt` 降順で自分のuidの分だけを返すこと、0件時に空状態を返すことを検証する(FR-013・FR-015・FR-016・FR-038)。`tests/integration/us1.test.ts` の「US2: 一覧」に実装
 
 ### Implementation for User Story 2
 
-- [X] T030 [US2] `src/artifacts/list.ts` を作成し、`src/db.ts` 経由で `WHERE uid = ? ORDER BY uploaded_at DESC` の一覧を取得する(FR-013・FR-015)
+- [X] T030 [US2] `src/db.ts` の `listArtifacts()` で `WHERE uid = ? ORDER BY uploaded_at DESC` の一覧を取得する(FR-013・FR-015)。`src/artifacts/list.ts` は作らなかった(理由は「設計文書と実装の差分」)
 - [X] T031 [US2] `src/views/list.tsx` を作成し、名前・アップロード日時・閲覧URLへのリンクを持つ一覧と、0件時の空状態(最初のアップロードを促す案内)を実装する(FR-014・FR-016)
-- [X] T032 [US2] `src/index.ts` に `GET /_app/` と `GET /_app/api/artifacts` を配線する。uidは認証から解決した値のみを使い、クエリパラメータで受け取らない(FR-038)
+- [X] T032 [US2] `src/index.tsx` に `GET /_app/` と `GET /_app/api/artifacts` を配線する。uidは認証から解決した値のみを使い、クエリパラメータで受け取らない(FR-038)
 - [ ] T033 [US2] `npm test` で T029 を実行し、[quickstart.md](./quickstart.md) の US2 シナリオ(手順1〜5)を実機で確認する
 
 **Checkpoint**: User Story 1 と 2 がそれぞれ独立に機能する
@@ -162,14 +164,14 @@ Access自体はまだ前段に入っていない。`/_app/` がAccessのログ�
 
 ### Tests for User Story 3
 
-- [ ] T034 [P] [US3] `tests/integration/name-conflict.test.ts` を作成し、同名の2回目が `409 name_conflict` を返すこと、`details.suggestions` の候補が実際に未使用であること、1回目の本文が変化していないことを検証する(FR-007・FR-008・SC-002)
+- [ ] T034 [P] [US3] 同名の2回目が `409 name_conflict` を返すこと、`details.suggestions` の候補が実際に未使用であること、1回目の本文が変化していないことを検証する(FR-007・FR-008・SC-002)。**`409` と1回目の本文が変化しないことは `tests/integration/us1.test.ts` で検証済み。`details.suggestions` の検証だけが未実施**(T035が未実装で候補が返らないため)
 
 ### Implementation for User Story 3
 
-- [ ] T035 [P] [US3] `src/ids.ts` に `suggestAlternativeNames()` を追加し、`<base>-2.<ext>`、`<base>-3.<ext>` の順に同一uid内で未使用の候補を探す(上限100件で打ち切る)(FR-007)
-- [ ] T036 [US3] `src/artifacts/upload.ts` に重複検知を追加する。D1での事前確認と主キー制約の両方で弾き、競合状態でも二重登録が起きないようにする。重複時は候補を含む `409` を返し、R2への書き込みを行わない(FR-007・FR-008)
-- [ ] T037 [US3] `src/views/upload.tsx` に名前の確認と変更のUIを追加し、`409` 応答の候補を提示して選択・再入力できるようにする(FR-004・FR-005)
-- [ ] T038 [US3] `src/views/upload.tsx` に使用可能な文字種の説明を表示し、`400 invalid_name` の応答をその説明とともに提示する(FR-006)
+- [ ] T035 [P] [US3] `src/ids.ts` に `suggestAlternativeNames()` を追加し、`<base>-2.<ext>`、`<base>-3.<ext>` の順に同一uid内で未使用の候補を探す(上限100件で打ち切る)(FR-007)。未使用判定には `src/db.ts` の `nameExists()` を使う(実装済み)。**受け手のUIはT037で実装済みなので、生成側を足せば候補が表示される**
+- [X] T036 [US3] `src/artifacts/upload.ts` に重複検知を追加する。D1の主キー制約で弾き、競合状態でも二重登録が起きないようにする。重複時は `409` を返し、R2への書き込みを行わない(FR-007・FR-008)。**候補(`details.suggestions`)はT035の未実装により未同梱**
+- [X] T037 [US3] `src/views/upload.tsx` に名前の確認と変更のUIを追加し、`409` 応答の候補を提示して選択・再入力できるようにする(FR-004・FR-005)
+- [X] T038 [US3] `src/views/upload.tsx` に使用可能な文字種の説明を表示し、`400 invalid_name` の応答をその説明とともに提示する(FR-006)
 - [ ] T039 [US3] `npm test` で T034 を実行し、[quickstart.md](./quickstart.md) の US3 シナリオ(手順1〜6)を実機で確認する
 
 **Checkpoint**: 名前の衝突による既存成果物の消失が構造的に起きない状態になる
@@ -189,9 +191,9 @@ Access自体はまだ前段に入っていない。`/_app/` がAccessのログ�
 
 ### Implementation for User Story 4
 
-- [ ] T042 [US4] `src/views/layout.tsx` のヘッダに `/cdn-cgi/access/logout` へのログアウトリンクを追加する(FR-019)
-- [ ] T043 [US4] `src/index.ts` の管理画面ハンドラに、uid未解決時の `403` 応答とuid発行が必要であることの案内を実装する
-- [ ] T044 [US4] `src/views/upload.tsx` と `src/views/list.tsx` に認証切れの扱いを実装する。API応答が期待するJSONでない、または `302` が観測された場合に認証切れと判断し、再認証の導線を出し、再認証後に同じ画面へ戻す(FR-021)
+- [X] T042 [US4] `src/views/layout.tsx` のヘッダに `/cdn-cgi/access/logout` へのログアウトリンクを追加する(FR-019)
+- [X] T043 [US4] `src/index.tsx` の管理画面ハンドラに、uid未解決時の `403` 応答とuid発行が必要であることの案内を実装する(`ownerRejection()` の `not_registered` 分岐)
+- [ ] T044 [US4] 認証切れの扱いを実装する(FR-021)。現在の画面はクライアントJSを持たないサーバレンダリングのフォームで、API応答を画面側で解釈する経路が存在しないため、元の記述(JSON判定・`302` 観測)はそのままでは適用できない。Accessが前段に入った後(T016)に、フォーム送信が認証切れでAccessへリダイレクトされる実際の挙動を確認してから方針を決める
 - [ ] T045 [US4] `npm test` で T040・T041 を実行し、[quickstart.md](./quickstart.md) の US4 シナリオ(手順1〜5)をシークレットウィンドウを使って実機で確認する。ログアウト後のトークン失効には20〜30秒かかるため、直後に通る場合は30秒待って再確認する
 
 **Checkpoint**: 未認証アクセスが遮断され、ログアウトが機能する
@@ -207,18 +209,18 @@ Access自体はまだ前段に入っていない。`/_app/` がAccessのログ�
 ### Tests for User Story 5
 
 - [ ] T046 [P] [US5] `tests/integration/visibility.test.ts` を作成し、`PUT /_app/api/artifacts/:name/visibility` の双方向トグル、切り替え前後で `url` が変化しないこと、`public` 直後に未認証で `200`、`private` 直後に未認証で `404` になることを検証する(FR-025〜FR-028・FR-030・SC-006)
-- [ ] T047 [P] [US5] `tests/integration/not-found-parity.test.ts` を作成し、非公開かつ非所有者への `404` と存在しないアーティファクトへの `404` が、ステータス・本文・ヘッダ(`Content-Length` を含む)まで完全に同一であることを検証する(FR-017・FR-024)
-- [ ] T048 [P] [US5] `tests/integration/serve-headers.test.ts` を作成し、公開・非公開いずれの配信応答にも `Cache-Control: no-store` と `Content-Security-Policy: sandbox ...` が付くことを検証する(FR-028)
+- [ ] T047 [P] [US5] 非公開かつ非所有者への `404` と存在しないアーティファクトへの `404` が、ステータス・本文・ヘッダ(`Content-Length` を含む)まで完全に同一であることを検証する(FR-017・FR-024)。**`tests/integration/us1.test.ts` で他uidの非公開・存在しない・uid形式不正の3分岐を本文とヘッダ一致まで検証済み。残るのはname形式不正の分岐**
+- [ ] T048 [P] [US5] 公開・非公開いずれの配信応答にも `Cache-Control: no-store` と `Content-Security-Policy: sandbox ...` が付くことを検証する(FR-028)。**非公開側は `tests/integration/us1.test.ts` で検証済み。公開側が未検証**
 - [ ] T049 [P] [US5] `tests/integration/visibility-authz.test.ts` を作成し、他uidに属するアーティファクト名を指定したトグルが `404` を返し、対象の公開状態が変化しないことを検証する(FR-031・FR-038)
 
 ### Implementation for User Story 5
 
-- [ ] T050 [US5] `src/artifacts/visibility.ts` を作成し、`visibility` の更新と `visibility_changed_at` の記録を実装する。対象は認証から解決したuidの名前空間に限り、リクエストのどの部分からもuidを受け取らない(FR-025・FR-027・FR-031)
-- [ ] T051 [US5] `src/artifacts/serve.ts` に公開状態の分岐を追加し、`visibility = 'public'` のときは認証を要求せず本文を返す(FR-026)
-- [ ] T052 [US5] `src/artifacts/serve.ts` の `404` 応答を1箇所の生成関数へ集約し、4つの分岐(非公開かつ非所有者、行なし、uid形式不正、name形式不正)がすべて同一の応答になるようにする(FR-017・FR-024)
-- [ ] T053 [US5] `src/views/list.tsx` に公開状態の表示と公開・非公開の切り替え操作を追加し、公開と非公開が視覚的に区別できるようにする(FR-014・FR-029)
-- [ ] T054 [US5] `src/artifacts/serve.ts` がアーティファクトのHTML以外を一切注入しないことを確認する。ナビゲーション・スクリプト・一覧への導線を付加しない(FR-032)
-- [ ] T055 [US5] `src/index.ts` に `PUT /_app/api/artifacts/:name/visibility` を配線し、`Sec-Fetch-Site` / `Origin` 検証を適用する
+- [X] T050 [US5] `src/db.ts` の `updateVisibility()` で `visibility` の更新と `visibility_changed_at` の記録を実装する。対象は認証から解決したuidの名前空間に限り、リクエストのどの部分からもuidを受け取らない(FR-025・FR-027・FR-031)。`src/artifacts/visibility.ts` は作らなかった(理由は「設計文書と実装の差分」)
+- [X] T051 [US5] `src/artifacts/serve.ts` に公開状態の分岐を追加し、`visibility = 'public'` のときは認証を要求せず本文を返す(FR-026)
+- [X] T052 [US5] `src/artifacts/serve.ts` の `404` 応答を1箇所の生成関数(`notFound()`)へ集約し、4つの分岐(非公開かつ非所有者、行なし、uid形式不正、name形式不正)がすべて同一の応答になるようにする(FR-017・FR-024)
+- [X] T053 [US5] `src/views/list.tsx` に公開状態の表示と公開・非公開の切り替え操作を追加し、公開と非公開が視覚的に区別できるようにする(FR-014・FR-029)。クライアントJSを持たせないため `<form method="post">` で表現している
+- [X] T054 [US5] `src/artifacts/serve.ts` がアーティファクトのHTML以外を一切注入しないことを確認する。ナビゲーション・スクリプト・一覧への導線を付加しない(FR-032)。R2オブジェクトの `body` をそのまま `Response` へ渡している
+- [X] T055 [US5] `src/index.tsx` に `PUT /_app/api/artifacts/:name/visibility` を配線し、`Sec-Fetch-Site` / `Origin` 検証を適用する。フォーム送信を受けるため `POST` も同じハンドラで受け付け、JSON要求時はJSON、それ以外は `303` で一覧へ戻す
 - [ ] T056 [US5] `npm test` で T046〜T049 を実行し、[quickstart.md](./quickstart.md) の US5 シナリオ(手順1〜9)を実機で確認する。手順3の `curl` + `diff` による404同一性の確認を必ず含める
 
 **Checkpoint**: 既定非公開と双方向の公開切り替えが成立し、非公開へ戻した後の露出が止まる
@@ -238,8 +240,8 @@ Access自体はまだ前段に入っていない。`/_app/` がAccessのログ�
 
 ### Implementation for User Story 6
 
-- [ ] T059 [US6] `src/db.ts` の全クエリが `uid` を必須引数として受け取り、`uid` なしで `artifacts` を参照できる関数が存在しないことをコードレビューで確認する(FR-038)
-- [ ] T060 [US6] `src/artifacts/serve.ts` と `src/artifacts/visibility.ts` で、パスから受け取った `uid` を認証済みuidと照合し、越境を防ぐ(FR-027・FR-038)
+- [X] T059 [US6] `src/db.ts` の全クエリが `uid` を必須引数として受け取り、`uid` なしで `artifacts` を参照できる関数が存在しないことをコードレビューで確認する(FR-038)。`listArtifacts`・`findArtifact`・`insertArtifact`・`updateVisibility`・`nameExists` のすべてが `uid` を第2引数に取る
+- [X] T060 [US6] `src/artifacts/serve.ts` でパスから受け取った `uid` を認証済みuidと照合し、越境を防ぐ。公開切替のハンドラはuidをリクエストから受け取らず認証結果のuidだけを使う(FR-027・FR-038)
 - [ ] T061 [US6] uid発行の運用手順を [quickstart.md](./quickstart.md) の手順4を参照する形でリポジトリの `README.md` に記載する。CSPRNGで生成した値を使い、手で考えた値を使わないことを明記する
 - [ ] T062 [US6] `npm test` で T057・T058 を実行し、[quickstart.md](./quickstart.md) の US6 シナリオ(手順1〜6)を2つ目のuidを発行して実機で確認する
 
