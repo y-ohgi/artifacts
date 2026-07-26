@@ -11,6 +11,19 @@ import { isDevelopmentEnvironment, type AppEnv } from "./env";
  */
 export const ACCESS_JWT_HEADER = "Cf-Access-Jwt-Assertion";
 
+/**
+ * Cookie Access sets on the whole hostname after a successful login.
+ *
+ * The header above only exists on requests that passed through an Access
+ * application, so it is absent on `/<uid>/<name>` — a path that must stay
+ * unprotected for public artifacts to work (contracts/http-api.md). The cookie
+ * carries the same signed JWT and is scoped to the host, so it is the only
+ * identity available there. It is verified exactly like the header: signature
+ * against the team JWKS, plus `iss`, `aud` and expiry. An unverified cookie can
+ * therefore never grant access.
+ */
+export const ACCESS_JWT_COOKIE = "CF_Authorization";
+
 export type OwnerResolution =
   | { readonly ok: true; readonly uid: string; readonly email: string }
   /** No usable identity on the request. */
@@ -43,10 +56,45 @@ function jwkSetFor(teamDomain: string): ReturnType<typeof createRemoteJWKSet> {
   return created;
 }
 
+/** Reads one cookie value out of a `Cookie` header. */
+function cookieValue(cookieHeader: string | null, name: string): string | null {
+  if (cookieHeader === null) {
+    return null;
+  }
+
+  for (const pair of cookieHeader.split(";")) {
+    const separator = pair.indexOf("=");
+    if (separator === -1 || pair.slice(0, separator).trim() !== name) {
+      continue;
+    }
+
+    const value = pair.slice(separator + 1).trim();
+    return value === "" ? null : value;
+  }
+
+  return null;
+}
+
+/**
+ * Picks the Access token off the request.
+ *
+ * The header wins when both are present: on an Access-protected path it is
+ * injected per request by Access itself, while the cookie is whatever the client
+ * happened to send.
+ */
+function accessToken(request: Request): string | null {
+  const header = request.headers.get(ACCESS_JWT_HEADER);
+  if (header !== null && header !== "") {
+    return header;
+  }
+
+  return cookieValue(request.headers.get("Cookie"), ACCESS_JWT_COOKIE);
+}
+
 /**
  * Extracts the verified email from the Access JWT on the request.
  *
- * Returns null when the header is absent or the token fails verification. The
+ * Returns null when no token is present or the token fails verification. The
  * `Cf-Access-Authenticated-User-Email` header is deliberately not used as a
  * source of truth: only a signature check proves the value came from Access.
  */
@@ -55,8 +103,8 @@ async function verifiedEmailFromAccessJwt(
   teamDomain: string,
   audience: string,
 ): Promise<string | null> {
-  const token = request.headers.get(ACCESS_JWT_HEADER);
-  if (token === null || token === "") {
+  const token = accessToken(request);
+  if (token === null) {
     return null;
   }
 

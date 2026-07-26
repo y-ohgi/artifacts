@@ -2,7 +2,7 @@ import { env, exports } from "cloudflare:workers";
 import { SignJWT, exportJWK, generateKeyPair } from "jose";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { ACCESS_JWT_HEADER } from "../../src/auth";
+import { ACCESS_JWT_COOKIE, ACCESS_JWT_HEADER } from "../../src/auth";
 import { insertArtifact, insertUser } from "../../src/db";
 
 /**
@@ -27,6 +27,9 @@ const OWNER_EMAIL = "owner@example.test";
 const OWNER_UID = "aaaaaaaaaa";
 
 const ORIGIN = "https://artifacts.example.test";
+
+/** Body of the private artifact used by the delivery-path tests. */
+const PRIVATE_HTML = "<!doctype html><html><body>PRIVATE</body></html>";
 
 const db = env.DB;
 
@@ -82,7 +85,8 @@ beforeEach(async () => {
 
   await db.batch([db.prepare("DELETE FROM artifacts"), db.prepare("DELETE FROM users")]);
   await insertUser(db, OWNER_UID, OWNER_EMAIL, "2026-07-01T00:00:00.000Z");
-  await insertArtifact(db, OWNER_UID, "secret.html", 42, "2026-07-02T00:00:00.000Z");
+  await insertArtifact(db, OWNER_UID, "secret.html", PRIVATE_HTML.length, "2026-07-02T00:00:00.000Z");
+  await env.ARTIFACTS.put(`${OWNER_UID}/secret.html`, PRIVATE_HTML);
 });
 
 afterEach(() => {
@@ -207,6 +211,81 @@ describe("uidが未発行の利用者 (T041)", () => {
     const body = JSON.parse(text) as { error: { code: string; message: string } };
     expect(body.error.message).toContain("stranger@example.test");
     expect(body.error.message).toContain("uid");
+  });
+});
+
+describe("非保護パスでの所有者判定 (T018)", () => {
+  const artifactRequest = (init: { cookie?: string; token?: string } = {}): Request => {
+    const headers = new Headers();
+    if (init.cookie !== undefined) {
+      headers.set("Cookie", init.cookie);
+    }
+    if (init.token !== undefined) {
+      headers.set(ACCESS_JWT_HEADER, init.token);
+    }
+
+    return new Request(`${ORIGIN}/${OWNER_UID}/secret.html`, { headers });
+  };
+
+  it("Accessのcookieに入ったJWTを検証して所有者へ本文を返す", async () => {
+    const token = await mintToken();
+
+    const response = await worker.fetch(
+      artifactRequest({ cookie: `${ACCESS_JWT_COOKIE}=${token}` }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe(PRIVATE_HTML);
+  });
+
+  it("他のcookieが混ざっていても取り出せる", async () => {
+    const token = await mintToken();
+
+    const response = await worker.fetch(
+      artifactRequest({ cookie: `foo=bar; ${ACCESS_JWT_COOKIE}=${token}; baz=qux` }),
+    );
+
+    expect(response.status).toBe(200);
+  });
+
+  it("cookieが無ければ非公開アーティファクトは404になる", async () => {
+    const response = await worker.fetch(artifactRequest());
+
+    expect(response.status).toBe(404);
+    expect(await response.text()).not.toContain("PRIVATE");
+  });
+
+  it("署名が検証できないcookieでは404になる", async () => {
+    const token = await mintToken({ key: foreignKey });
+
+    const response = await worker.fetch(
+      artifactRequest({ cookie: `${ACCESS_JWT_COOKIE}=${token}` }),
+    );
+
+    expect(response.status).toBe(404);
+    expect(await response.text()).not.toContain("PRIVATE");
+  });
+
+  it("cookieのemailが他人でも他人の名前空間は覗けない", async () => {
+    // stranger は users に無いため uid が解決できず、所有者にはなれない。
+    const token = await mintToken({ email: "stranger@example.test" });
+
+    const response = await worker.fetch(
+      artifactRequest({ cookie: `${ACCESS_JWT_COOKIE}=${token}` }),
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  it("ヘッダとcookieの両方があるときはヘッダを優先する", async () => {
+    const valid = await mintToken();
+    const invalid = await mintToken({ key: foreignKey });
+
+    const response = await worker.fetch(
+      artifactRequest({ token: valid, cookie: `${ACCESS_JWT_COOKIE}=${invalid}` }),
+    );
+
+    expect(response.status).toBe(200);
   });
 });
 
