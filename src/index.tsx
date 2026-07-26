@@ -9,6 +9,7 @@ import { ErrorCodes, errorResponse } from "./errors";
 import { adminHeaderRecord } from "./headers";
 import { ListPage } from "./views/list";
 import { PATH_LIST, PATH_UPLOAD } from "./views/layout";
+import { NoticePage, type NoticePageProps } from "./views/notice";
 import type { ArtifactListItem as ViewArtifactListItem } from "./views/types";
 import { UploadPage, type UploadError } from "./views/upload";
 
@@ -39,7 +40,7 @@ app.get("/", (c) => c.redirect(PATH_LIST, 302));
 app.get("/_app/", async (c) => {
   const owner = await resolveOwner(c.env, c.req.raw);
   if (!owner.ok) {
-    return ownerRejection(owner);
+    return ownerRejection(c.req.raw, owner);
   }
 
   const artifacts = await listArtifacts(c.env.DB, owner.uid);
@@ -51,7 +52,7 @@ app.get("/_app/", async (c) => {
 app.get("/_app/upload", async (c) => {
   const owner = await resolveOwner(c.env, c.req.raw);
   if (!owner.ok) {
-    return ownerRejection(owner);
+    return ownerRejection(c.req.raw, owner);
   }
 
   return c.html(<UploadPage />);
@@ -62,7 +63,7 @@ app.get("/_app/upload", async (c) => {
 app.get(API_ARTIFACTS, async (c) => {
   const owner = await resolveOwner(c.env, c.req.raw);
   if (!owner.ok) {
-    return ownerRejection(owner);
+    return ownerRejection(c.req.raw, owner);
   }
 
   const artifacts = await listArtifacts(c.env.DB, owner.uid);
@@ -78,7 +79,7 @@ app.post(API_ARTIFACTS, async (c) => {
 
   const owner = await resolveOwner(c.env, c.req.raw);
   if (!owner.ok) {
-    return ownerRejection(owner);
+    return ownerRejection(c.req.raw, owner);
   }
 
   const form = await c.req.raw.formData();
@@ -161,7 +162,7 @@ app.on(["PUT", "POST"], `${API_ARTIFACTS}/:name/visibility`, async (c) => {
 
   const owner = await resolveOwner(c.env, c.req.raw);
   if (!owner.ok) {
-    return ownerRejection(owner);
+    return ownerRejection(c.req.raw, owner);
   }
 
   const requested = await readVisibility(c.req.raw);
@@ -331,39 +332,93 @@ function crossOrigin(): Response {
 }
 
 /**
+ * Where to send the requester after they re-authenticate (FR-021).
+ *
+ * A GET can simply be repeated, so the same URL is offered. A form post cannot
+ * be replayed — the body is gone — so the matching screen is offered instead.
+ */
+function retryPath(request: Request): string {
+  const url = new URL(request.url);
+  if (request.method === "GET") {
+    return `${url.pathname}${url.search}`;
+  }
+
+  return url.pathname === API_ARTIFACTS ? PATH_UPLOAD : PATH_LIST;
+}
+
+/**
  * Maps a failed identity resolution onto a response.
+ *
+ * API clients get the JSON envelope from contracts/http-api.md; browsers get the
+ * same status with an HTML explanation and a way back, because a JSON body tells
+ * a person nothing about what to do next (FR-021).
  *
  * `unauthenticated` should be unreachable in a deployed environment, because
  * Access rejects the request before it reaches the Worker. It is handled anyway
  * so the Worker fails closed if the Access application is ever misconfigured.
  */
-function ownerRejection(owner: Extract<OwnerResolution, { ok: false }>): Response {
+function ownerRejection(
+  request: Request,
+  owner: Extract<OwnerResolution, { ok: false }>,
+): Response {
   switch (owner.reason) {
     case "not_registered":
-      return errorResponse(
-        403,
-        {
-          code: ErrorCodes.NOT_FOUND,
-          message: `${owner.email} には uid が発行されていません。運用者による発行が必要です。`,
+      return rejectionResponse(request, 403, {
+        code: ErrorCodes.NOT_FOUND,
+        message: `${owner.email} には uid が発行されていません。運用者による発行が必要です。`,
+        notice: {
+          title: "uid が発行されていません",
+          message: `${owner.email} で認証されましたが、この宛先には uid が割り当てられていません。運用者に uid の発行を依頼してください。`,
+          hint: "uid は users テーブルへ登録されます。発行後はこの画面を再読み込みすれば利用できます。",
         },
-        adminHeaderRecord(),
-      );
+      });
     case "misconfigured":
-      return errorResponse(
-        500,
-        {
-          code: ErrorCodes.STORAGE_FAILED,
-          message: "認証設定が未完了です。ACCESS_TEAM_DOMAIN と ACCESS_AUD を設定してください。",
+      return rejectionResponse(request, 500, {
+        code: ErrorCodes.STORAGE_FAILED,
+        message: "認証設定が未完了です。ACCESS_TEAM_DOMAIN と ACCESS_AUD を設定してください。",
+        notice: {
+          title: "認証設定が未完了です",
+          message:
+            "この環境には Cloudflare Access の設定が渡されていないため、安全側に倒して操作を停止しました。",
+          hint: "ACCESS_TEAM_DOMAIN と ACCESS_AUD を secret として設定してください。",
         },
-        adminHeaderRecord(),
-      );
+      });
     case "unauthenticated":
-      return errorResponse(
-        401,
-        { code: ErrorCodes.NOT_FOUND, message: "認証が必要です。" },
-        adminHeaderRecord(),
-      );
+      return rejectionResponse(request, 401, {
+        code: ErrorCodes.NOT_FOUND,
+        message: "認証が必要です。",
+        notice: {
+          title: "認証が切れています",
+          message:
+            "認証状態が確認できませんでした。開き直すと再認証され、そのまま操作を続けられます。",
+          action: { label: "開き直す", href: retryPath(request) },
+        },
+      });
   }
+}
+
+/** Renders an identity rejection as JSON for APIs and as HTML for browsers. */
+function rejectionResponse(
+  request: Request,
+  status: number,
+  rejection: {
+    code: (typeof ErrorCodes)[keyof typeof ErrorCodes];
+    message: string;
+    notice: NoticePageProps;
+  },
+): Response {
+  if (wantsJson(request)) {
+    return errorResponse(
+      status,
+      { code: rejection.code, message: rejection.message },
+      adminHeaderRecord(),
+    );
+  }
+
+  return new Response(String(NoticePage(rejection.notice)), {
+    status,
+    headers: { ...adminHeaderRecord(), "Content-Type": "text/html; charset=utf-8" },
+  });
 }
 
 function formatMegabytes(bytes: number): string {

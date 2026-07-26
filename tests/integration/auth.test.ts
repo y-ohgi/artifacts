@@ -214,6 +214,66 @@ describe("uidが未発行の利用者 (T041)", () => {
   });
 });
 
+describe("認証切れの案内 (FR-021, T044)", () => {
+  const browserRequest = (path: string, method = "GET"): Request =>
+    new Request(`${ORIGIN}${path}`, {
+      method,
+      headers: { Accept: "text/html,application/xhtml+xml" },
+      ...(method === "GET" ? {} : { body: new FormData() }),
+    });
+
+  it("ブラウザからの一覧アクセスにはHTMLで認証切れと再認証の導線を返す", async () => {
+    const response = await worker.fetch(browserRequest("/_app/"));
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get("Content-Type")).toContain("text/html");
+
+    const html = await response.text();
+    expect(html).toContain("認証が切れています");
+    expect(html).toContain("開き直す");
+    // 再認証後に同じ画面へ戻せること(FR-021)。
+    expect(html).toContain('href="/_app/"');
+  });
+
+  it("再認証の導線は元のクエリまで保つ", async () => {
+    const response = await worker.fetch(browserRequest("/_app/upload?from=list"));
+
+    expect(await response.text()).toContain('href="/_app/upload?from=list"');
+  });
+
+  it("フォーム送信が認証切れになった場合は対応する画面へ戻す", async () => {
+    // POST の本文は再送できないため、同じURLではなくアップロード画面へ導く。
+    const response = await worker.fetch(browserRequest("/_app/api/artifacts", "POST"));
+
+    expect(response.status).toBe(401);
+    expect(await response.text()).toContain('href="/_app/upload"');
+  });
+
+  it("APIクライアントには従来どおりJSONを返す", async () => {
+    const response = await worker.fetch(listRequest());
+
+    expect(response.headers.get("Content-Type")).toContain("application/json");
+    const body = (await response.json()) as { error: { code: string } };
+    expect(body.error.code).toBe("not_found");
+  });
+
+  it("uid未発行はHTMLでも発行が必要であることを案内する", async () => {
+    const token = await mintToken({ email: "stranger@example.test" });
+    const request = new Request(`${ORIGIN}/_app/`, {
+      headers: { Accept: "text/html", [ACCESS_JWT_HEADER]: token },
+    });
+
+    const response = await worker.fetch(request);
+
+    expect(response.status).toBe(403);
+    const html = await response.text();
+    expect(html).toContain("uid が発行されていません");
+    expect(html).toContain("stranger@example.test");
+    // 再試行しても解決しないため、開き直す導線は出さない。
+    expect(html).not.toContain("開き直す");
+  });
+});
+
 describe("非保護パスでの所有者判定 (T018)", () => {
   const artifactRequest = (init: { cookie?: string; token?: string } = {}): Request => {
     const headers = new Headers();
