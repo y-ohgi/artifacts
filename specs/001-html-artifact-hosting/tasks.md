@@ -46,6 +46,17 @@ Access自体はまだ前段に入っていない。`/_app/` がAccessのログ�
 
 なおT016はカスタムドメイン前提でパスを2つ保護する内容だが、dev環境はworkers.devのOne-click Accessを使うためURL全体の保護になる。MVPのスコープは全アーティファクトが非公開のUS1なので要件と矛盾しない。パス単位の保護境界はカスタムドメイン段階で必要になる。
 
+## 設計文書と実装の差分
+
+タスク本文の記述より、以下の実装を正とする。タスク本文にも同じ内容を反映済み。
+
+- **エントリポイントは `src/index.tsx`**。Honoのjsxを使うため `.tsx`。以下のタスク本文では `src/index.ts` を `src/index.tsx` と読み替える
+- **書き込み順は D1 → R2**。plan.mdとT025が記述する「R2 put → D1 insert」の逆。R2を先に書くと同名アップロードでD1の衝突検知より先に既存の本体が上書きされ、FR-008が要求する「1回目が失われない」を満たせないため反転させた。R2の書き込みに失敗した場合はD1の予約行を削除する(FR-009)。理由は `src/artifacts/upload.ts` のdocコメントに記載
+- **Access のAUDは単一の `ACCESS_AUD`**。T005・T016が記述する `ACCESS_AUD_APP` / `ACCESS_AUD_AUTH` の2つには分けていない。`/_auth` 配下を別applicationにするかどうかがT017の結果に依存し、それが未確定のため
+- **`src/artifacts/list.ts` と `src/artifacts/visibility.ts` は作っていない**。一覧取得と公開切替はいずれもD1の1クエリで完結するため、`src/db.ts` の `listArtifacts()` / `updateVisibility()` と `src/index.tsx` のハンドラに置いた
+- **統合テストは `tests/integration/us1.test.ts` に集約**。タスクが指定する `upload.test.ts`・`upload-reject.test.ts`・`serve-owner.test.ts`・`list.test.ts` などのファイルは存在しない。同一のWorkerインスタンスとマイグレーション適用を共有するため1ファイルにまとめている
+- **`src/db.ts` の全関数が `uid` を必須の第2引数に取る**。`uid` なしで `artifacts` を参照できる関数は存在しない(FR-038)
+
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: 並列実行可能(別ファイル、未完了タスクへの依存なし)
