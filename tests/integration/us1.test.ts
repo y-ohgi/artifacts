@@ -149,6 +149,30 @@ describe("名前の衝突で既存アーティファクトが失われない (FR
     const served = await worker.fetch(new Request(`${ORIGIN}/${OWNER_UID}/report.html`));
     expect(await served.text()).toBe(HTML);
   });
+
+  it("409 の details.suggestions が実際に未使用の名前である (FR-007)", async () => {
+    await worker.fetch(uploadRequest("report.html", HTML));
+    // 1つ目の候補も埋めておき、候補生成が使用済みを飛ばすことまで確認する。
+    await worker.fetch(uploadRequest("report.html", HTML, { name: "report-2.html" }));
+
+    const conflict = await worker.fetch(uploadRequest("report.html", HTML));
+    expect(conflict.status).toBe(409);
+
+    const body = (await conflict.json()) as {
+      error: { code: string; details?: { suggestions?: string[] } };
+    };
+    const suggestions = body.error.details?.suggestions ?? [];
+
+    expect(body.error.code).toBe("name_conflict");
+    expect(suggestions).not.toHaveLength(0);
+    expect(suggestions).not.toContain("report-2.html");
+
+    // 「未使用である」ことは、その名前でのアップロードが 201 になることで示す。
+    for (const suggestion of suggestions) {
+      const accepted = await worker.fetch(uploadRequest("report.html", HTML, { name: suggestion }));
+      expect(accepted.status).toBe(201);
+    }
+  });
 });
 
 describe("非公開アーティファクトは存在を漏らさない (FR-017, FR-023, FR-024)", () => {

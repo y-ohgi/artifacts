@@ -139,6 +139,8 @@ app.post(API_ARTIFACTS, async (c) => {
         status: 409,
         code: ErrorCodes.NAME_CONFLICT,
         message: "同じ名前のアーティファクトが既に存在します。別の名前を指定してください。",
+        details: { suggestions: failure.suggestions },
+        suggestions: failure.suggestions,
       });
     case "no_file":
     case "storage_failed":
@@ -266,6 +268,8 @@ function respondUpload(
     code: (typeof ErrorCodes)[keyof typeof ErrorCodes];
     message: string;
     details?: Record<string, unknown>;
+    /** Alternative names offered on a collision, shown by the upload view. */
+    suggestions?: readonly string[];
   },
 ): Response {
   if (wantsJson(request)) {
@@ -276,7 +280,10 @@ function respondUpload(
     );
   }
 
-  const viewError: UploadError = { message: error.message };
+  const viewError: UploadError = {
+    message: error.message,
+    ...(error.suggestions === undefined ? {} : { suggestions: [...error.suggestions] }),
+  };
   return new Response(uploadPageHtml(requestedName, viewError), {
     status: error.status,
     headers: { ...adminHeaderRecord(), "Content-Type": "text/html; charset=utf-8" },
