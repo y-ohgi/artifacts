@@ -85,6 +85,35 @@ describe("ListPage", () => {
     expect(html).toContain("badge-private");
   });
 
+  it("非公開の項目にだけ所有者として開く導線を出す (T018)", async () => {
+    const html = await render(
+      <ListPage
+        artifacts={[
+          item({
+            name: "private.html",
+            visibility: "private",
+            ownerViewUrl: "/_auth/view?target=%2Faaaaaaaaaa%2Fprivate.html",
+          }),
+          item({
+            name: "public.html",
+            visibility: "public",
+            ownerViewUrl: "/_auth/view?target=%2Faaaaaaaaaa%2Fpublic.html",
+          }),
+        ]}
+      />,
+    );
+
+    expect(html).toContain('href="/_auth/view?target=%2Faaaaaaaaaa%2Fprivate.html"');
+    expect(html).not.toContain("%2Fpublic.html");
+    expect(html).toContain("所有者として開く");
+  });
+
+  it("ownerViewUrl が無ければ導線を出さない", async () => {
+    const html = await render(<ListPage artifacts={[item({ visibility: "private" })]} />);
+
+    expect(html).not.toContain("所有者として開く");
+  });
+
   it("公開状態の切り替えを form で表現し、対象名をエンコードした宛先へ向ける", async () => {
     const html = await render(
       <ListPage artifacts={[item({ name: "my report.html", visibility: "private" })]} />,

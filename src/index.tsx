@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 
-import { serveArtifact } from "./artifacts/serve";
+import { OWNER_VIEW_PATH, ownerViewPath, serveArtifact, serveOwnerView } from "./artifacts/serve";
 import { MAX_SIZE_BYTES, storeArtifact } from "./artifacts/upload";
 import { isSameOriginRequest, resolveOwner, type OwnerResolution } from "./auth";
 import { listArtifacts, updateVisibility, type ArtifactListItem, type Visibility } from "./db";
@@ -43,7 +43,9 @@ app.get("/_app/", async (c) => {
   }
 
   const artifacts = await listArtifacts(c.env.DB, owner.uid);
-  return c.html(<ListPage artifacts={artifacts.map((row) => toViewItem(c.req.url, owner.uid, row))} />);
+  return c.html(
+    <ListPage artifacts={artifacts.map((row) => toPageItem(c.req.url, owner.uid, row))} />,
+  );
 });
 
 app.get("/_app/upload", async (c) => {
@@ -203,6 +205,19 @@ app.on(["PUT", "POST"], `${API_ARTIFACTS}/:name/visibility`, async (c) => {
     : c.redirect(PATH_LIST, 303);
 });
 
+// --- owner view fallback (Access-protected) ----------------------------------
+
+/**
+ * Serves an artifact to its owner from behind Access.
+ *
+ * Registered before `/:uid/:name` so the static path always wins, and outside
+ * the `/_app/*` middleware so the response carries the artifact header profile
+ * (the body is the artifact itself and must stay sandboxed).
+ */
+app.get(OWNER_VIEW_PATH, async (c) =>
+  serveOwnerView(c.env, c.req.raw, c.req.query("target")),
+);
+
 // --- artifact delivery (Access-unprotected; the Worker decides) --------------
 
 app.get("/:uid/:name", async (c) =>
@@ -217,6 +232,10 @@ function artifactUrl(requestUrl: string, uid: string, name: string): string {
   return new URL(`/${uid}/${encodeURIComponent(name)}`, requestUrl).toString();
 }
 
+/**
+ * Shapes a row for the JSON API. The fields match contracts/http-api.md exactly,
+ * so nothing UI-specific is added here.
+ */
 function toViewItem(
   requestUrl: string,
   uid: string,
@@ -230,6 +249,15 @@ function toViewItem(
     visibilityChangedAt: row.visibility_changed_at,
     url: artifactUrl(requestUrl, uid, row.name),
   };
+}
+
+/** Same row plus the owner-view link, which only the rendered page uses. */
+function toPageItem(
+  requestUrl: string,
+  uid: string,
+  row: ArtifactListItem,
+): ViewArtifactListItem {
+  return { ...toViewItem(requestUrl, uid, row), ownerViewUrl: ownerViewPath(uid, row.name) };
 }
 
 function readName(form: FormData): string | null {
