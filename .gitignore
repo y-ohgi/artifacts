@@ -1,0 +1,27 @@
+# Node.js
+node_modules/
+*.log
+npm-debug.log*
+
+# Cloudflare Workers / Wrangler
+.wrangler/
+worker-configuration.d.ts
+
+# Secrets — 実値は絶対にコミットしない(.dev.vars.example のみ追跡する)
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+.env
+.env.*
+!.env.example
+
+# Build output
+dist/
+build/
+coverage/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+.idea/

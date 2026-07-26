@@ -1,0 +1,39 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "artifacts",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-26",
+  "observability": {
+    "enabled": true
+  },
+
+  // バインディングは環境ごとに定義する。wrangler の仕様上 vars / r2_buckets /
+  // d1_databases は継承されないため、環境を追加するたびに明示する必要がある。
+  // production 環境はリソースを作成した時点で追加する(現状は dev のみ)。
+  "env": {
+    "dev": {
+      // deploy 時の Worker 名は "<トップレベル name>-<env>" になる。
+      // 公開URL: https://artifacts-dev.<account subdomain>.workers.dev
+      "workers_dev": true,
+      "r2_buckets": [
+        {
+          "binding": "ARTIFACTS",
+          "bucket_name": "artifacts-html-dev"
+        }
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "artifacts-meta-dev",
+          "database_id": "ffab7b0b-5d55-4db6-8850-f2b0ccea73d5"
+        }
+      ]
+    }
+  }
+
+  // Secrets は wrangler.jsonc に書かない。`wrangler secret put <NAME> --env dev` で設定する。
+  //   ACCESS_TEAM_DOMAIN  例: myteam.cloudflareaccess.com
+  //   ACCESS_AUD          Access application の AUD タグ
+  // このリポジトリは public なので、アカウントを特定できる値は vars ではなく secret に置く。
+  // ローカル開発用の値は .dev.vars(gitignore対象)に書く。
+}
