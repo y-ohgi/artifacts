@@ -1,0 +1,19 @@
+# ローカル開発用の変数のテンプレート。
+# このファイルをコピーして .dev.vars を作る。.dev.vars は gitignore 対象で、
+# デプロイ環境へは渡らない。実値をこのファイルへ書かないこと。
+#
+#   cp .dev.vars.example .dev.vars
+
+# ローカル実行であることの印。この値が "local" のときだけ、Access を介さずに
+# DEV_OWNER_EMAIL を所有者として扱う。wrangler.jsonc には書かないため、
+# デプロイした Worker がこの分岐へ入ることはない(fail closed)。
+ENVIRONMENT="local"
+
+# ローカルで所有者として扱うメールアドレス。users テーブルに登録した値と一致させる。
+DEV_OWNER_EMAIL="you@example.com"
+
+# デプロイ環境では以下を secret として設定する(ローカルでは不要)。
+#   npx wrangler secret put ACCESS_TEAM_DOMAIN --env dev
+#   npx wrangler secret put ACCESS_AUD --env dev
+# ACCESS_TEAM_DOMAIN="yourteam.cloudflareaccess.com"
+# ACCESS_AUD="<Access application の AUD タグ>"

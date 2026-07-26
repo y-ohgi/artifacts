@@ -4,3 +4,5 @@
 
 - 1 skill = 1ディレクトリ。`<name>/SKILL.md` にfrontmatter(name / description)を付ける。
 - descriptionだけが常時読み込まれる。本文は該当タスクのときのみ読まれるため、詳細手順は本文へ書く。
+
+共通のskill(レビュー観点、調査、文書作成、週次レビューなど)は `~/.claude/skills/` に配置済みで、このリポジトリからそのまま呼び出せる。ここへ複製しない。ここに置くのはこのリポジトリ固有のskillだけとする。`speckit-*` はSpec Kitが生成したもので、独自skillとは名前空間が分かれている。
