@@ -25,6 +25,9 @@ export default defineConfig(async () => {
       }),
     ],
     test: {
+      // E2E(tests/e2e)は `wrangler dev` へHTTPで話すため、Workerの中で走る
+      // このプールでは実行できない。vitest.e2e.config.ts が担当する。
+      include: ["tests/unit/**/*.test.{ts,tsx}", "tests/integration/**/*.test.{ts,tsx}"],
       setupFiles: ["./tests/setup/apply-migrations.ts"],
     },
   };
