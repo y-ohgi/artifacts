@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { Layout } from "../../src/views/layout";
 import { ListPage, formatDateTime, formatSize } from "../../src/views/list";
+import { APP_CSS, STYLESHEET_PATH } from "../../src/views/styles";
 import type { ArtifactListItem } from "../../src/views/types";
 import { UploadPage } from "../../src/views/upload";
 
@@ -44,7 +45,52 @@ describe("Layout", () => {
     expect(html).toContain('<html lang="ja">');
     expect(html).toContain("ここが本文");
   });
+
+  /**
+   * 管理画面のCSPは `default-src 'self'` で、インラインの `<style>` を拒否する。
+   * インラインへ戻すとCSSが1バイトも適用されなくなる(#8)。
+   */
+  it("CSSをインラインではなく外部スタイルシートとして読み込む (#8)", async () => {
+    const html = await render(<Layout title="テスト">本文</Layout>);
+
+    expect(html).not.toContain("<style");
+    expect(html).toContain(`<link rel="stylesheet" href="${STYLESHEET_PATH}"`);
+  });
 });
+
+describe("スタイルシート", () => {
+  it("'self' で解決できるルート相対のパスを持つ", () => {
+    expect(STYLESHEET_PATH.startsWith("/_app/assets/")).toBe(true);
+    expect(STYLESHEET_PATH.endsWith(".css")).toBe(true);
+  });
+
+  it("パスにCSS本文の指紋を含み、内容が変われば変わる", async () => {
+    const { STYLESHEET_PATH: again } = await import("../../src/views/styles");
+    expect(again).toBe(STYLESHEET_PATH);
+
+    // 指紋は本文から決まるので、別の本文なら別のパスになる。実装と同じ手順で確認する。
+    const fingerprint = /app-([0-9a-z]+)\.css$/.exec(STYLESHEET_PATH)?.[1];
+    expect(fingerprint).toBeTruthy();
+    expect(fingerprint).not.toBe(hash(`${APP_CSS}\n.extra { color: red; }`));
+    expect(fingerprint).toBe(hash(APP_CSS));
+  });
+
+  it("layout.tsx が参照していたクラスのスタイルを保持している", () => {
+    for (const selector of [".site-header", ".artifact-table", ".badge-public", ".empty-state"]) {
+      expect(APP_CSS).toContain(selector);
+    }
+  });
+});
+
+/** src/views/styles.ts の fingerprint と同じ FNV-1a。テスト側で独立に再現する。 */
+function hash(source: string): string {
+  let value = 0x811c9dc5;
+  for (let index = 0; index < source.length; index += 1) {
+    value ^= source.charCodeAt(index);
+    value = Math.imul(value, 0x01000193) >>> 0;
+  }
+  return value.toString(36);
+}
 
 describe("ListPage", () => {
   it("0件のとき空状態と最初のアップロードへの導線を出す (FR-016)", async () => {

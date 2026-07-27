@@ -10,6 +10,7 @@ Cloudflare Accessが遮断する範囲とWorkerが判定する範囲を明確に
 
 - `/_app/*` — Access保護。未認証はWorkerに到達しない
 - `/_app/api/*` — Access保護(`/_app/*` に含まれるが、APIとしてAUDを分けたい場合は別applicationにしてよい)
+- `/_app/assets/*` — Access保護(`/_app/*` に含まれる)。管理画面のCSSなど、画面自身が読み込む静的アセット
 - `/_auth/*` — Access保護。非保護パスでの所有者判定のフォールバック用
 - `/cdn-cgi/access/*` — Cloudflare Accessが処理。Workerには到達しない
 - 上記以外(`/`、`/<uid>/<name>.html`) — Access非保護。Workerが判定する
@@ -24,6 +25,12 @@ Cloudflare Accessが遮断する範囲とWorkerが判定する範囲を明確に
 - `X-Content-Type-Options: nosniff`
 - `Referrer-Policy: no-referrer`
 - `Content-Security-Policy: default-src 'self'; frame-ancestors 'none'`
+
+このCSPには `style-src` も `script-src` も無く、どちらも `default-src 'self'` へ落ちる。つまり**インラインの `<style>` も `<script>` もブラウザに拒否される**。管理画面はこれに合わせて書く ―― CSSは同一オリジンの外部スタイルシートから読み、インラインのスタイル・スクリプト・`on*` 属性は一切持たない。このCSPを変えるときは、画面にスタイルが当たっているかを併せて確認すること(ヘッダだけを見ても壊れたことが分からない)。`'unsafe-inline'` を足して解決してはならない。
+
+管理画面の静的アセット(`/_app/assets/*`)の応答は、上記からキャッシュだけを差し替える:
+
+- `Cache-Control: private, max-age=31536000, immutable`(パスに内容ハッシュを含むため。他のヘッダは管理画面と同一)
 
 アーティファクト(`/<uid>/<name>.html`)の応答:
 
@@ -86,6 +93,15 @@ Cloudflare Accessが遮断する範囲とWorkerが判定する範囲を明確に
 - ファイル選択後、確定前に名前を初期値付きで提示する。初期値は元のファイル名(FR-004)
 - 名前を任意の値へ変更できる(FR-005)
 - 使用可能な文字種を画面上で明示する(FR-006)
+
+## GET /_app/assets/app-&lt;hash&gt;.css
+
+**目的**: 管理画面のスタイルシート。`default-src 'self'` を緩めずにCSSを届けるための唯一の経路。
+
+- 認証: Access保護(`/_app/*` に含まれる)。ただしWorkerはuidを解決しない。CSSは全利用者で同一で、uid未発行の利用者に返る通知画面も装飾する必要があるため
+- 応答: `200 OK`、`Content-Type: text/css; charset=utf-8`
+
+`<hash>` はCSS本文から決まる。内容が変われば別のパスになるので、応答は長期キャッシュしてよい。画面側はこのパスを `<link rel="stylesheet">` で参照する。
 
 ## POST /_app/api/artifacts
 

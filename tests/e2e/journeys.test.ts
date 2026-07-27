@@ -102,6 +102,35 @@ describe("初期状態", () => {
   });
 });
 
+/**
+ * CSPと画面の整合(#8)。
+ *
+ * ブラウザは動かせないので `document.styleSheets.length > 0` そのものは測れない
+ * が、それが成り立つ条件 ―― ページがインラインの `<style>` を持たず、代わりに
+ * 同一オリジンのスタイルシートを指し、その宛先が実際に空でないCSSを返すこと
+ * ―― を、起動した Worker への実HTTPで確かめる。
+ */
+describe("管理画面のスタイル配信 (#8)", () => {
+  it("各画面がインラインではなく同一オリジンのCSSを読み込み、それが実際に返る", async () => {
+    for (const path of ["/_app/", "/_app/upload"]) {
+      const page = await fetch(`${owner}${path}`);
+      expect(page.status, path).toBe(200);
+
+      const html = await page.text();
+      expect(html, path).not.toContain("<style");
+      expect(page.headers.get("content-security-policy"), path).not.toContain("unsafe-inline");
+
+      const href = /<link rel="stylesheet" href="([^"]+)"/.exec(html)?.[1];
+      expect(href, path).toMatch(/^\//);
+
+      const css = await fetch(`${owner}${href}`);
+      expect(css.status, href).toBe(200);
+      expect(css.headers.get("content-type")).toContain("text/css");
+      expect((await css.text()).length).toBeGreaterThan(0);
+    }
+  });
+});
+
 describe("US1: HTMLをアップロードして閲覧する", () => {
   it("/ は /_app/ へリダイレクトする", async () => {
     const response = await fetch(`${owner}/`, { redirect: "manual" });

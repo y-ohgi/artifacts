@@ -6,10 +6,11 @@ import { isSameOriginRequest, resolveOwner, type OwnerResolution } from "./auth"
 import { listArtifacts, updateVisibility, type ArtifactListItem, type Visibility } from "./db";
 import type { AppEnv } from "./env";
 import { ErrorCodes, errorResponse } from "./errors";
-import { adminHeaderRecord } from "./headers";
+import { adminAssetHeaders, adminHeaderRecord } from "./headers";
 import { ListPage } from "./views/list";
 import { PATH_LIST, PATH_UPLOAD } from "./views/layout";
 import { NoticePage, type NoticePageProps } from "./views/notice";
+import { APP_CSS, STYLESHEET_PATH } from "./views/styles";
 import type { ArtifactListItem as ViewArtifactListItem } from "./views/types";
 import { UploadPage, type UploadError } from "./views/upload";
 
@@ -24,6 +25,28 @@ const app = new Hono<{ Bindings: AppEnv }>();
  * that the Worker itself decides visibility per artifact.
  */
 const API_ARTIFACTS = "/_app/api/artifacts";
+
+/**
+ * The management UI's stylesheet.
+ *
+ * The admin CSP is `default-src 'self'` with no `style-src`, so an inline
+ * `<style>` is refused by the browser and the UI renders unstyled. Serving the
+ * CSS from its own same-origin route satisfies that CSP without weakening it.
+ *
+ * Registered ahead of the `/_app/*` middleware on purpose: this handler returns
+ * without calling `next()`, so the middleware never runs and cannot overwrite
+ * the long-lived `Cache-Control` this hashed path is allowed to carry. The
+ * security headers come from the same profile as the middleware's, spread from
+ * it in src/headers.ts, so skipping the middleware does not skip them.
+ *
+ * No identity is resolved here. The CSS is the same for everyone (Access
+ * already gates `/_app/*`), and a viewer without a uid still needs the notice
+ * page they are shown to be readable.
+ */
+app.get(
+  STYLESHEET_PATH,
+  () => new Response(APP_CSS, { headers: adminAssetHeaders({ "Content-Type": "text/css; charset=utf-8" }) }),
+);
 
 /** Sends the shared security headers on every management response. */
 app.use("/_app/*", async (c, next) => {
