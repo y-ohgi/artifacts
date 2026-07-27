@@ -22,3 +22,13 @@ AIコーディングエージェント共通の作業規約。毎ターン読み
 ## 基本方針
 
 - (プロジェクト固有の規約を、失敗を観測してから追記する)
+
+## ブランチ運用 (Git-Flow)
+
+- `main` = 本番相当。push で production へ自動デプロイされる。
+- `development` = 開発の統合ブランチ。push で dev 環境へ自動デプロイされる。
+- 作業ブランチは `feature/*`(`development` から分岐、`development` へPR)。
+- 緊急修正は `hotfix/*`(`main` から分岐、`main` へPR。マージ後 `development` にも反映する)。
+- リリース安定化が必要なときだけ `release/*` を使う(現状の規模では省略してよい)。
+- PRのベースは既定で `development`。`main` へのPRは `hotfix/*` とリリースのマージのみ。
+- 上記のブランチ名に `.github/workflows/` のCI/CDが対応する(ci.yml, deploy-development.yml, deploy-production.yml)。

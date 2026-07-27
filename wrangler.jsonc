@@ -28,6 +28,32 @@
           "database_id": "ffab7b0b-5d55-4db6-8850-f2b0ccea73d5"
         }
       ]
+    },
+
+    // workers_dev は使わない。workers.dev の One-click Access はホスト全体を
+    // 保護し、公開アーティファクト配信(README記載のFR-026)と両立しないため、
+    // 本番はカスタムドメイン + `/_app` `/_auth` のみを保護するAccess設定が前提。
+    // custom_domain はホスト名のみを指定する(zone_name はゾーンから解決される)。
+    "production": {
+      "routes": [
+        {
+          "pattern": "peta.lu-mica.com",
+          "custom_domain": true
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "ARTIFACTS",
+          "bucket_name": "artifacts-html-production"
+        }
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "artifacts-meta-production",
+          "database_id": "3597a4b9-5b56-49c1-b9bf-1a4e2b04dddb"
+        }
+      ]
     }
   }
 
