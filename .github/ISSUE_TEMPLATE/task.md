@@ -2,7 +2,7 @@
 name: 依頼
 about: 方針から決める必要があり、調査と設計そのものを頼む
 title: ''
-labels: enhancement
+labels: task
 assignees: ''
 ---
 
@@ -10,7 +10,11 @@ assignees: ''
 基準は harness/templates/issue.md にある。立てる前に読むこと。
 不具合・改善と違い、これは「何を作るか」がまだ決まっていないときの雛形。
 先に決めるべきことが解決策の形で書けるなら、改善(enhancement.md)を使う。
-ラベルは優先度(priority: high / middle / low)も付ける。
+タイトルに接頭辞は付けない([UI/UX] などを書かない)。種別も領域もラベルで表す。
+ラベルは 種別 → 領域 → 優先度 の順に付ける。
+  1つ目: task (この雛形の種別。必ず先頭)
+  2つ目: UI/UX (画面と操作感に関わるときだけ)
+  3つ目: priority: high / middle / low (必須)
 このコメントは提出前に消す。
 -->
 
