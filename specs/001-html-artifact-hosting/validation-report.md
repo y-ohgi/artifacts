@@ -72,14 +72,27 @@ dev環境で非公開アーティファクトと存在しないアーティフ�
 - AUDタグ相当の64桁hexは `tests/integration/auth.test.ts` のテスト用固定値だけ
 - `cloudflareaccess.com` の出現箇所はすべてプレースホルダ(`yourteam` / `myteam` / `example-team`)
 
+## Access有効化後の観測(2026-07-27、追記)
+
+Cloudflare Access を workers.dev で有効化した後、未認証から再観測した。
+
+- `/`、`/_app/`、`/<uid>/e2e-public.html`、`/<uid>/e2e-private.html`、`/<uid>/nonexistent.html` のすべてが `302` で `https://y-ohgi.cloudflareaccess.com/cdn-cgi/access/login/...` へ送られる
+- 管理画面へのログインは成功する(利用者による確認)
+
+workers.dev の One-click Access は**ホスト全体**を保護する。管理画面の保護(FR-020)は意図どおり成立する一方、アーティファクトの配信パスもAccessの内側に入るため、**公開アーティファクトを未認証で読ませる要件(FR-026・US5)はこの構成では成立しない**。全アーティファクトが非公開であるMVPのスコープとは矛盾しない。
+
+他者への共有を有効にするには、カスタムドメインへ移して `/_app` と `/_auth` だけを保護するパス単位の境界へ切り替える(contracts/http-api.md)。Worker側の実装は変更不要で、保護境界の設定だけが変わる。
+
+`tests/e2e/remote.test.ts` は保護の形を観測してから期待値を選ぶようにした。現在は `host` と判定され、6件のうち4件が成功、公開配信に関する2件が理由付きでスキップされる。
+
 ## 残っている作業
 
 いずれも Cloudflare 側の操作か、人の目による確認を要する。
 
-1. **T016: Access application の有効化**。Workers & Pages → `artifacts-dev` → Settings → Domains & Routes → workers.dev で Cloudflare Access を有効化する。現在 `/_app/` はWorker自身が401を返しており(Accessのログイン画面へのリダイレクトではない)、Accessは前段に入っていない。`wrangler` のOAuthトークンにZero Trust系のスコープが無く、CLIからは実行できない
-2. **T017: `CF_Authorization` cookieの到達性の実測**。1が完了しないと確認できない。実装は届く場合と届かない場合の両方に対応済みで、結論はどちらでも変更を要しない([research.md セクション4](./research.md))
-3. **US4の手動確認**: Accessの認証画面が出ること、ログアウトが機能すること、既発行トークンが20〜30秒で失効すること
-4. **SC-001・SC-003・SC-007の人による実測**
+1. **US4の残りの手動確認**: ログアウトが機能すること、既発行トークンが20〜30秒で失効すること(認証画面が出ることと認証後に使えることは確認済み)
+2. **T017: `CF_Authorization` cookieの到達性の実測**。現在の構成では配信パスもAccess保護下にあり `Cf-Access-Jwt-Assertion` が届くため、この確認が必要になるのはカスタムドメインへ移した後。実装は届く場合と届かない場合の両方に対応済み([research.md セクション4](./research.md))
+3. **SC-001・SC-003・SC-007の人による実測**
+4. **(US5を使う場合)カスタムドメインへの移行**。上の「Access有効化後の観測」を参照
 
 ## 参考: dev環境に置いたスモーク用データ
 

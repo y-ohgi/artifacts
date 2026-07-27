@@ -15,12 +15,12 @@ description: "Task list for HTMLアーティファクト共有サイト"
 
 ## 実装状況(2026-07-27 時点)
 
-69タスクのうち66件完了。残る3件はいずれもCloudflare側の操作か人の目による確認を要するもので、コード上の未実装は無い。実測の記録は [validation-report.md](./validation-report.md) を正とする。
+69タスクのうち67件完了。残る2件(T017・T045)は人の目による確認と実測で、コード上の未実装は無い。実測の記録は [validation-report.md](./validation-report.md) を正とする。
 
 dev環境へデプロイ済み: `https://artifacts-dev.ohgi-211.workers.dev`(Version ID `38b22369-0b3f-4bcc-a579-c69ab1056434`)
 
 - Phase 1 Setup: 完了(T001〜T005)
-- Phase 2 Foundational: T006〜T015・T018・T019 完了。**T016・T017 が未完了**
+- Phase 2 Foundational: T006〜T016・T018・T019 完了。**T017 が未完了**
 - Phase 3 US1: 完了(T020〜T028)
 - Phase 4 US2: 完了(T029〜T033)
 - Phase 5 US3: 完了(T034〜T039)
@@ -40,17 +40,25 @@ US5の実装がUS3・US4より先に進んだのは、一覧画面が公開切�
 - dev環境: `GET /` が `302 /_app/`、`GET /_app/` が `401`、公開アーティファクトが `200` で `no-store` と `sandbox` 付き、非公開と不存在の404が本文・ヘッダまで一致
 - SC-009: 105件で `/_app/` の生成が6ms
 
-### MVPを利用可能にするために残っている作業(Cloudflare側の操作が必要)
+### Access有効化後の状態(2026-07-27)
 
-1. Cloudflareダッシュボードで Workers & Pages → `artifacts-dev` → Settings → Domains & Routes → workers.dev の項目で Cloudflare Access を有効化する(T016)
-2. 有効化後にAccessの認証画面・ログアウト・トークン失効を確認する(T045のうちUS4手順1〜5)
-3. `CF_Authorization` cookieの到達性を実測し research.md へ反映する(T017)
+Cloudflare Access を有効化し、管理画面へログインできることを確認済み。**MVPは利用可能な状態になった。**
+
+未認証からの観測では、`/`・`/_app/`・`/<uid>/<name>` のすべてが `https://y-ohgi.cloudflareaccess.com/cdn-cgi/access/login/...` へ302される。workers.dev の One-click Access は**ホスト全体**を保護するため、意図どおり管理画面は守られる一方、アーティファクトの配信パスもAccessの内側に入る。
+
+**この構成では公開アーティファクト(FR-026・US5)が成立しない。** 未認証の相手はAccessのログイン画面に当たり、公開へ切り替えたアーティファクトも読めない。全アーティファクトが非公開であるMVPのスコープ(US1〜US4・US6)とは矛盾しないが、他者への共有を有効にするにはカスタムドメインへ移し、`/_app` と `/_auth` だけを保護するパス単位の境界へ切り替える必要がある(contracts/http-api.md の保護境界)。
+
+`tests/e2e/remote.test.ts` は保護の形(ホスト全体か、パス単位か)を観測してから期待値を選ぶ。現在は `host` と判定され、公開配信に関する2件は理由付きでスキップされる。
+
+### 残っている作業
+
+1. ログアウトが機能すること、既発行トークンが20〜30秒で失効することを確認する(T045のうちUS4手順3〜5)
+2. `CF_Authorization` cookieの到達性を実測し research.md へ反映する(T017)。現在の構成では配信パスもAccess保護下にあり `Cf-Access-Jwt-Assertion` が届くため、この確認が要るのはカスタムドメインへ移した後
+3. (US5を使う場合)カスタムドメインへの移行とパス単位のAccess application 作成
 
 `ACCESS_TEAM_DOMAIN` と `ACCESS_AUD` は設定済みと判断している。デプロイ環境では `ENVIRONMENT` が常に `undefined` になり、その状態で両secretが未設定なら `src/auth.ts` は `misconfigured` を返して `500` になる。現在返るのが `401`(`unauthenticated`)であることがこれを示す。ただしsecretの値そのものは未確認。
 
 uidは2件登録済み(`ohgi.211@gmail.com` と `y-ohgi@topotal.com`)。Accessがどちらのemailを返しても uid が解決できる。
-
-Access自体はまだ前段に入っていない。`/_app/` がAccessのログイン画面へのリダイレクトではなくWorker自身の `401` を返しているため。**1が完了すればMVPは利用可能になる。** それまでの間も、公開アーティファクトの配信・非公開の遮断・404の同一性はdev環境で動作している。
 
 なおT016はカスタムドメイン前提でパスを2つ保護する内容だが、dev環境はworkers.devのOne-click Accessを使うためURL全体の保護になる。MVPのスコープは全アーティファクトが非公開のUS1なので要件と矛盾しない。パス単位の保護境界はカスタムドメイン段階で必要になる。
 
@@ -108,8 +116,8 @@ Access自体はまだ前段に入っていない。`/_app/` がAccessのログ�
 - [X] T013 `src/db.ts` を作成し、D1への型付きクエリ(ユーザー取得、アーティファクトの取得・一覧・登録・公開状態更新)を実装する。すべてのクエリが `uid` を条件に含むことを関数シグネチャで強制する
 - [X] T014 `src/auth.ts` を作成し、`jose` で `Cf-Access-Jwt-Assertion` のJWTを検証する(JWKSを `https://<team>.cloudflareaccess.com/cdn-cgi/access/certs` からTTL付きキャッシュで取得、`kid` 照合、`aud`・`iss` 検証)。検証済みemailから `users` を引いてuidを解決する関数を含める
 - [X] T015 `src/index.tsx` を作成し、Honoのルートテーブルで [contracts/http-api.md](./contracts/http-api.md) の保護境界を1箇所に表現する。`GET /` は `302 /_app/` を返す。この時点では各ハンドラは未実装のスタブでよい
-- [ ] T016 Access application を作成し、`wrangler secret put` で `ACCESS_TEAM_DOMAIN`・`ACCESS_AUD` を設定する。**secretの設定は完了済みで、残っているのはapplication側の有効化**。dev環境は workers.dev の One-click Access を使うためURL全体の保護になる(Workers & Pages → `artifacts-dev` → Settings → Domains & Routes)。カスタムドメイン段階で self-hosted application を作り、`artifacts.<domain>/_app` 配下と `/_auth` 配下を保護してrootパスを対象外にする。`/_auth` を別applicationに分けてAUDを2つ持つかどうかはT017の結果で決める
-- [ ] T017 [research.md](./research.md) セクション4の未確認事項を検証する。一時的なデバッグルートで `request.headers.get('cookie')` のcookie名のみを出力し(値はマスクする)、`/_app/` で認証後にAccess非保護パスへアクセスして `wrangler tail` で `CF_Authorization` の到達を確認する。結果を `research.md` に反映し、デバッグルートを削除する。**T016の完了を待つ。この確認は所有者の閲覧をブロックしない**(T018で両方の分岐を実装済み)
+- [X] T016 Access application を作成し、`wrangler secret put` で `ACCESS_TEAM_DOMAIN`・`ACCESS_AUD` を設定する。**完了。ログインできることを確認済み**。dev環境は workers.dev の One-click Access を使うためURL全体の保護になる(Workers & Pages → `artifacts-dev` → Settings → Domains & Routes)。カスタムドメイン段階で self-hosted application を作り、`artifacts.<domain>/_app` 配下と `/_auth` 配下を保護してrootパスを対象外にする。`/_auth` を別applicationに分けてAUDを2つ持つかどうかはT017の結果で決める
+- [ ] T017 [research.md](./research.md) セクション4の未確認事項を検証する。**現在のdev環境では配信パスもAccess保護下にあり `Cf-Access-Jwt-Assertion` が届くため、この確認が必要になるのはカスタムドメインへ移した後**。一時的なデバッグルートで `request.headers.get('cookie')` のcookie名のみを出力し(値はマスクする)、`/_app/` で認証後にAccess非保護パスへアクセスして `wrangler tail` で `CF_Authorization` の到達を確認する。結果を `research.md` に反映し、デバッグルートを削除する。**T016の完了を待つ。この確認は所有者の閲覧をブロックしない**(T018で両方の分岐を実装済み)
 - [X] T018 非保護パスでの所有者判定を実装する。T017の結果を待たずに**両方**を実装した。`src/auth.ts` が `CF_Authorization` cookie のJWTをヘッダと同一手順で検証し、加えてAccess保護下の `GET /_auth/view` を用意して一覧から辿れるようにした(`target` は `/<uid>/<name>` の形のみ許可し、`//`・スキーム付きURL・`..`・深い階層・名前規則違反を拒否する)。当初案の「非公開かつ未認証を302で送る」は404の同一性(FR-017・FR-024)を崩すため採らなかった
 - [X] T019 [P] `package.json` に `dev`、`deploy`、`test`、`migrate:local`、`migrate:remote` のnpmスクリプトを追加する
 
@@ -205,7 +213,7 @@ Access自体はまだ前段に入っていない。`/_app/` がAccessのログ�
 - [X] T042 [US4] `src/views/layout.tsx` のヘッダに `/cdn-cgi/access/logout` へのログアウトリンクを追加する(FR-019)
 - [X] T043 [US4] `src/index.tsx` の管理画面ハンドラに、uid未解決時の `403` 応答とuid発行が必要であることの案内を実装する(`ownerRejection()` の `not_registered` 分岐)
 - [X] T044 [US4] 認証切れの扱いを実装する(FR-021)。画面はクライアントJSを持たないサーバレンダリングのため、元の記述(JSON判定・`302` 観測)はそのままでは適用できない。代わりに、Workerが認証を解決できなかったときブラウザには `src/views/notice.tsx` の案内画面を返し、再認証の導線を出す。GETは元のパスとクエリへ戻し、POSTは本文を再送できないため対応する画面へ導く。Accessが前段に入った状態での挙動確認はT045に含む
-- [ ] T045 [US4] `npm test` で T040・T041 を実行し、[quickstart.md](./quickstart.md) の US4 シナリオ(手順1〜5)をシークレットウィンドウを使って実機で確認する。ログアウト後のトークン失効には20〜30秒かかるため、直後に通る場合は30秒待って再確認する。**自動テストは完了(T040・T041、および未認証が管理画面・管理APIから内容を得られないことを `tests/e2e/journeys.test.ts` の「US4」で確認)。Accessの認証画面・ログアウト・トークン失効の確認だけがT016の完了待ちで未実施**
+- [ ] T045 [US4] `npm test` で T040・T041 を実行し、[quickstart.md](./quickstart.md) の US4 シナリオ(手順1〜5)をシークレットウィンドウを使って実機で確認する。ログアウト後のトークン失効には20〜30秒かかるため、直後に通る場合は30秒待って再確認する。**自動テストは完了(T040・T041、および未認証が管理画面・管理APIから内容を得られないことを `tests/e2e/journeys.test.ts` の「US4」で確認)。dev環境で未認証がAccessのログイン画面へ送られること、認証後に管理画面を使えることも確認済み。残るはログアウトの動作とトークン失効(手順3〜5)**
 
 **Checkpoint**: 未認証アクセスが遮断され、ログアウトが機能する
 

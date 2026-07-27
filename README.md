@@ -49,6 +49,9 @@ npm run deploy
 Cloudflare Access の設定は Cloudflare 側の操作が必要で、`wrangler` からは行えない。
 
 1. Zero Trust で管理画面を保護する(dev環境は Workers & Pages → `artifacts-dev` → Settings → Domains & Routes の workers.dev で有効化する)
+
+   **workers.dev の One-click Access はホスト全体を保護する。** 管理画面は守られるが、アーティファクトの配信パスもAccessの内側に入るため、公開アーティファクトを未認証で読ませること(FR-026)はできない。全アーティファクトを非公開で使う分には問題ない。他者への共有を使うには、カスタムドメインへ移して `/_app` と `/_auth` だけを保護する。
+
 2. Access application の AUD タグとチームドメインを控える
 3. secret を設定する
 
