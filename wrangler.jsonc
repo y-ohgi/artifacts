@@ -30,16 +30,14 @@
       ]
     },
 
-    // R2バケットとD1データベースは作成済み。残るは routes のカスタムドメインのみ。
-    // TODO: カスタムドメインを用意したら REPLACE_WITH_* を実値へ置き換える。
     // workers_dev は使わない。workers.dev の One-click Access はホスト全体を
     // 保護し、公開アーティファクト配信(README記載のFR-026)と両立しないため、
     // 本番はカスタムドメイン + `/_app` `/_auth` のみを保護するAccess設定が前提。
+    // custom_domain はホスト名のみを指定する(zone_name はゾーンから解決される)。
     "production": {
       "routes": [
         {
-          "pattern": "REPLACE_WITH_PROD_DOMAIN/*",
-          "zone_name": "REPLACE_WITH_ZONE",
+          "pattern": "peta.lu-mica.com",
           "custom_domain": true
         }
       ],
