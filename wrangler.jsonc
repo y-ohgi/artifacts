@@ -28,6 +28,36 @@
           "database_id": "ffab7b0b-5d55-4db6-8850-f2b0ccea73d5"
         }
       ]
+    },
+
+    // TODO(本番未整備): 下記3箇所の REPLACE_* は実際のリソース作成後に置き換える。
+    //   1. `wrangler r2 bucket create artifacts-html-production`
+    //   2. `wrangler d1 create artifacts-meta-production` → database_id を反映
+    //   3. カスタムドメイン設定 → routes を反映
+    // workers_dev は使わない。workers.dev の One-click Access はホスト全体を
+    // 保護し、公開アーティファクト配信(README記載のFR-026)と両立しないため、
+    // 本番はカスタムドメイン + `/_app` `/_auth` のみを保護するAccess設定が前提。
+    "production": {
+      "routes": [
+        {
+          "pattern": "REPLACE_WITH_PROD_DOMAIN/*",
+          "zone_name": "REPLACE_WITH_ZONE",
+          "custom_domain": true
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "ARTIFACTS",
+          "bucket_name": "artifacts-html-production"
+        }
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "artifacts-meta-production",
+          "database_id": "REPLACE_AFTER_WRANGLER_D1_CREATE"
+        }
+      ]
     }
   }
 
