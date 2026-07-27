@@ -1,50 +1,203 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report
+==================
+Version change: (未批准テンプレート) → 1.0.0
+Bump rationale: 初回批准。全プレースホルダを具体化し、原則5件と2節を新規制定した。
+
+Modified principles:
+- [PRINCIPLE_1_NAME] → I. レンダリングした結果で検証する (NON-NEGOTIABLE)
+- [PRINCIPLE_2_NAME] → II. 未確認は完了を止める
+- [PRINCIPLE_3_NAME] → III. 保護境界と公開判定を1箇所に集約する
+- [PRINCIPLE_4_NAME] → IV. 画面を仕様の対象にする
+- [PRINCIPLE_5_NAME] → V. 到達可能性の基準を先に決める
+
+Added sections:
+- [SECTION_2_NAME] → Verification Standards
+- [SECTION_3_NAME] → Development Workflow
+
+Removed sections: なし
+
+Templates requiring updates:
+- ⚠ pending .specify/templates/plan-template.md
+    "Constitution Check" が `[Gates determined based on constitution file]` のまま。
+    原則I〜Vごとの合否欄へ差し替える必要がある。
+- ⚠ pending .specify/templates/spec-template.md
+    原則IVに対応する「画面ごとに人が操作を完了できること」の成功基準の枠が無い。
+- ⚠ pending .specify/templates/tasks-template.md
+    原則I・Vに対応する検証タスク種別(レンダリング検証・到達可能性検証)が無い。
+- ⚠ pending AGENTS.md
+    本憲法との優先順位、および原則I由来の1行(画面変更時のレンダリング検証)を未反映。
+- ⚠ pending README.md
+    本憲法への参照が無い。
+- ✅ n/a .specify/templates/commands/
+    このリポジトリには存在しない。speckit のコマンドは .claude/skills/speckit-*/SKILL.md。
+
+Follow-up TODOs:
+- harness/guards/ が空。原則I・Vを機械的に強制する guard が未実装。
+  未機械化のあいだ、当該要件は harness/rules/ に「プロンプト頼み」として明示すること
+  (harness/rules/README.md の規定)。追跡: GitHub issue #8。
+- harness/rules/ が空。本憲法の検証可能な要件の転記が未了。
+-->
+
+# artifacts Constitution
+
+このリポジトリで守る原則を定める。憲章は推測で作らない。ここに書かれた各原則は、
+このリポジトリで**実際に観測された失敗**、または既に定着している運用のいずれかに
+裏付けられている。裏付けの無い原則は追加しない。
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. レンダリングした結果で検証する (NON-NEGOTIABLE)
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+- 利用者が見る画面の正しさは、**ブラウザが解釈した後の状態**でのみ判定する。
+  サーバサイドレンダリングした文字列への一致検証は、この判定の代わりにならない。
+- HTTPヘッダ・CSS・クライアントスクリプトのいずれかに触れる変更は、実ブラウザで
+  対象画面を開き、**コンソールエラー0件**を確認するまで完了としない。
+- ひとつの成果物の正しさが複数のファイルに分かれて決まるとき(例: レスポンスヘッダと
+  ビュー)、**組み合わせた結果を検証する場所を1つ決め**、そこで検証する。個々の
+  ファイルが単体で仕様どおりであることは、組み合わせの正しさを意味しない。
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+**根拠**: 管理画面のCSPが `default-src 'self'` である一方、`src/views/layout.tsx` は
+CSSをインライン `<style>` で埋め込んでいた。ブラウザは適用を拒否し、約270行のCSSが
+1バイトも効いていなかった。この状態で `tsc --noEmit`・単体/統合152件・E2E31件・
+未認証スモーク6件がすべて成功し、検証レポートまで作成されている。ヘッダは
+`tests/unit/headers.test.ts` が、ビューは `tests/unit/views.test.tsx` が、
+それぞれ単体では正しく検証していた。テストスタックにブラウザが一度も登場しないことが、
+この事故の唯一かつ十分な原因である。
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### II. 未確認は完了を止める
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+- 検証レポートに「未確認」「未実施」として残る項目は、**①不要と判断した理由**、
+  または **②追跡するIssue番号** のいずれかを必ず持つ。
+- どちらも持たない未確認項目が1件でも残っている機能は、完了(Done)にできない。
+- 「確認した事実」と「未確認の事項」を分けて書く既存の規律は維持する。本原則は、
+  その記述を**完了判定に接続する**ことだけを追加する。
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+**根拠**: `specs/001-html-artifact-hosting/validation-report.md` は
+「ブラウザのdevtoolsによる確認は未実施」「人の操作を含む実測は未実施」を自ら明記した。
+記述は正確だったが、未確認のまま Phase 9 が完了扱いになった。未確認事項の1つは
+原則Iの事故と同じ領域を指していた。正直な記録が完了を止めなかったことが問題であり、
+記録の質は問題ではない。
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### III. 保護境界と公開判定を1箇所に集約する
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+- どのパスがCloudflare Accessで保護され、どのパスがWorker自身で公開状態を判定するかは、
+  `src/index.tsx` のルート定義と `src/auth.ts` を読めば全体が分かる状態を維持する。
+- アーティファクトの所有者判定は、認証から解決した `uid` のみを使う。リクエストに
+  含まれる `uid` を信用してはならない。
+- 「存在しない」と「存在するが権限が無い」は、ステータス・本文・ヘッダが**完全に同一**の
+  応答を返す。個別の分岐に理由・ヘッダ・本文の差を足してはならない。この同一性は
+  テストで保証する。
+- レスポンスヘッダのプロファイル(管理画面用 / アーティファクト用)を取り違えてはならない。
+  アーティファクトの応答は `Cache-Control: no-store` と sandbox CSP を常に伴う。
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+**根拠**: 既に定着している運用の明文化である。この不変条件は
+`specs/001-html-artifact-hosting/plan.md`、README、`src/artifacts/serve.ts` の
+コメントに分散して書かれており、実装とテストもそれに従っている。リポジトリ外の
+グローバル設定に依存せず、参加者全員に適用される形で残す必要があるため、ここへ昇格させる。
+
+### IV. 画面を仕様の対象にする
+
+- 仕様に画面が登場する機能は、成功基準(Success Criteria)に
+  **「その画面で人が目的の操作を完了できること」**を1つ以上含める。
+- 画面に関する要件は、サーバの振る舞いの要件と同じ粒度で機能要件(FR)として書く。
+  「画面がある」ことを前提に、その上での操作を暗黙にしてはならない。
+- 一覧・入力・共有のように**繰り返し使われる導線**は、想定される最大規模の
+  データ量における振る舞いを要件に含める(→ Verification Standards の代表データ)。
+
+**根拠**: FR-001〜FR-039 のうち画面そのものに言及する要件は FR-016(0件時の空状態)
+のみで、他はすべてサーバ側の振る舞いだった。結果として、共有URLをコピーする導線が
+存在しない、一覧に検索も並び替えもページングも無い、狭い画面でテーブルが破綻する、
+といった欠落が**どの要件にも違反せずに**成立した(GitHub issues #10 / #15 / #16)。
+仕様が画面を対象にしていなかったため、これらは誰の責任範囲でもなかった。
+
+### V. 到達可能性の基準を先に決める
+
+- 対象画面幅・コントラスト比・キーボード操作の基準は、Verification Standards に
+  定めた値をリポジトリ全体で用いる。機能ごと・変更ごとに個別判断してはならない。
+- 基準を満たさないことを許容する場合は、**対象外であることを仕様に明記**する。
+  明記の無い未対応は、単なる違反として扱う。
+- 同一のラベルを持つ操作要素を複数並べてはならない。操作要素は、支援技術から
+  **操作対象を識別できる**名前を持つ。
+
+**根拠**: 390px幅で一覧テーブルのボタンが1文字ずつ縦積みになり、行の高さが200px近くに
+膨らんでいた(issue #16)。また、一覧の全行に同一ラベルの「公開する」ボタンが並び、
+支援技術から操作対象を判別できない(issue #18)。いずれも「対象外」と決めた記録が
+どこにも無い。決めていないことと、決めて外したことを区別できる状態にする。
+
+## Verification Standards
+
+原則I・IV・Vが参照する具体値をここに一元化する。個別の機能仕様でこの値を再定義しない。
+
+**検証ブラウザ**: Chromium系の最新版1つを必須とする。他のブラウザエンジンでの確認は
+本憲法の要求範囲外であり、必要になった時点で本節を改正して追加する。
+
+**対象画面幅**: 390px / 768px / 1280px の3点。390pxにおいて、ページ本体に横スクロールが
+発生してはならない。表・図・コードブロックなど幅を持つ要素は、自身のスクロール領域内で
+横スクロールさせる。
+
+**コンソール**: 検証対象の画面において、ブラウザコンソールのエラーが0件であること。
+警告は本基準の対象外とする。
+
+**コントラスト**: WCAG 2.1 レベルAA。通常テキストは4.5:1以上、
+18.66px以上または太字14pt以上のテキストは3:1以上。
+
+**キーボード操作**: すべての操作可能要素へキーボードで到達でき、到達時のフォーカス位置が
+視認できること。
+
+**代表データ**: 画面の検証は、少なくとも 0件 / 1件 / 100件 / 1,000件 の4水準と、
+名前が最大長(64文字)のアーティファクトを含む状態で行う。1件だけを想定した確認は、
+本基準を満たさない。
+
+**未機械化の扱い**: 本節の基準のうち `harness/guards/` のスクリプトへ落とせていないものは、
+`harness/rules/` に要件・理由・「未機械化(プロンプト頼み)」であることを明示し、
+機械化を優先課題として扱う(`harness/rules/README.md`)。
+
+## Development Workflow
+
+**Constitution Check**: 各機能の `plan.md` にある Constitution Check は、
+本憲法の原則I〜Vそれぞれについて合否と根拠を記す。原則が存在するため
+「評価対象が無い」という判定は今後使えない。違反を伴う設計は Complexity Tracking に
+理由と却下した代替案を記録する。
+
+**機械化の優先**: 原則違反を検出できるものは、プロンプトで守らせるのではなく
+`harness/guards/` のスクリプトへ落とし、CI と `.claude/hooks/` の両方から同じスクリプトを
+呼ぶ。guard は違反時に非ゼロで終了し、先へ進めなくする。
+
+**ラチェット**: 規約(本憲法・`AGENTS.md`・`harness/rules/`)へ行を追加してよいのは、
+実際に失敗を観測したときか、外部制約があるときだけとする。各行は、根拠となる失敗または
+制約を説明できなければならない。能力向上や設計変更で不要になった行は削除する。
+
+**完了の定義**: 機能が完了(Done)であるとは、次のすべてを満たすことをいう。
+
+1. 型検査と自動テストが成功している
+2. 画面を含む変更については、原則Iのレンダリング検証を実施している
+3. 検証レポートの未確認項目が、原則IIの条件を満たしている
+4. `plan.md` の Constitution Check に未解決の違反が無い
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+**優先順位**: 本憲法が最上位である。以下、リポジトリ直下の `AGENTS.md`、
+各機能の `plan.md` / `spec.md` の順とする。エージェント個人のグローバル設定に置かれた
+共通規約は、本憲法と矛盾しない範囲で補完的に作用する。矛盾した場合は本憲法が優先する。
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**リポジトリ内完結**: このリポジトリで守らせたい規約は、このリポジトリ内に書く。
+リポジトリ外のグローバル設定に依存する規約は、その設定を持たない参加者には適用されない。
+本憲法は、ツールにも個人設定にも依存しない唯一の規約の置き場である。
+
+**改正手続き**: 改正はPull Requestで行い、同一のPRに次の3点を含める。
+
+1. 変更する原則または節
+2. 根拠となる、観測された失敗または外部制約
+3. 影響を受けるテンプレート・guard・ドキュメントの更新(または追跡Issueの番号)
+
+**バージョニング**: セマンティックバージョニングに従う。
+
+- MAJOR: 原則の削除、または後方非互換な再定義
+- MINOR: 原則・節の追加、または実質的な指針の拡張
+- PATCH: 字句の修正、明確化、意味を変えない調整
+
+**コンプライアンスレビュー**: 遵守は2箇所で確認する。設計時は各機能の `plan.md` の
+Constitution Check、完了時は検証レポートである。未確認を残す場合の扱いは原則IIに従う。
+
+**Version**: 1.0.0 | **Ratified**: 2026-07-27 | **Last Amended**: 2026-07-27
