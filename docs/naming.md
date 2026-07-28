@@ -213,6 +213,46 @@ pon の浸透理由は「資料をponしました」と動詞化されたこと�
 | 「ペタバイト」で大容量ストレージと誤解される | タグラインで補正する(「ぺたっと貼って、URLを渡す。」) |
 | 擬音が非日本語話者に伝わらない | **名前を説明しない**。説明が必要な名前は説明せず、英語タグラインで動作だけを伝える("Paste an HTML. Get a link.") |
 
+## ドメインの空き状況(2026-07-28 調査)
+
+調査方法: IANAのRDAPブートストラップ(`https://data.iana.org/rdap/dns.json`)でTLDごとのRDAPサーバを解決し、`peta.<tld>` を問い合わせた(107 TLD)。RDAP非対応のTLDはDoH(`dns.google/resolve`)でNS委任の有無を見た。各ゾーンについて `nic.<tld>` などの既知の登録が `delegated` として観測できることを対照確認済み(`nic.nz` のみ対照なし)。
+
+### 主要TLDは全滅
+
+`com` `net` `org` `io` `dev` `app` `ai` `co` `me` `page` `site` `link` `one` `tech` `xyz` `info` `biz` `design` `fun` `host` `id` `is` `la` `li` `lol` `online` `to` `tv` `cc` `jp` `us` `se` `it` `de` `fr` `nl` `es` `ch` `at` `kr` `pl` `si` `uk` `tw` — すべて登録済み。4文字の一般語なので当然の結果。
+
+### 空き(レジストリのRDAPが "Object not found" を返した。高信頼)
+
+- **短いccTLD**: `gd` `fm` `ly` `re` `sg` `cx` `pw`
+- **新gTLD**: `run` `click` `pro` `tools` `cloud` `space` `live` `studio` `store` `shop` `software` `systems` `team` `works` `world` `zone` `wiki` `media` `network` `land` `life` `house` `group` `company` `codes` `digital` `blog` `blue` `green` `pink` `red` `plus` `press` `pub` `rocks` `ninja` `ink` `fyi` `agency` `wtf`
+
+### 空きの可能性(RDAP非対応。DNS委任が無く、対照確認は通っている。中信頼)
+
+`sh` `st` `so` `ac` `gg` `im` `mn` `my` `nu` `pe` `sx` `vc` `nz` — レジストラのwhoisで最終確認が必要。
+
+判定不能: `eu`(問い合わせがSERVFAIL)、`ws`(ゾーンがNXDOMAINを返さずRDAPも無い)。`br` は直接の2階層登録を提供していないため対象外。
+
+### 推奨
+
+| 候補 | 評価 |
+| --- | --- |
+| **peta.sh** | dev文脈との相性が最も良い(シェルの連想、CLI `peta`)。要確認。年$40〜60程度と高め |
+| **peta.run** | 確認済みで空き、安価。「貼って動く」が名前と合う。現実的な第一候補 |
+| **peta.click** | 「ぺた」の擬音とクリック感が近い。安価 |
+| **peta.st** | 4+2文字で最短級。要確認 |
+| **peta.pro** | 中立で短く、価格も安定 |
+| **peta.gd** | `is.gd` と同じグレナダ。短縮URL文脈の伝統がある |
+
+**避けるべきもの**:
+
+- **`.ly`** — リビア管轄で、過去にコンテンツを理由としたドメイン停止の事例がある(2010年の `vb.ly`)。**ユーザー由来のHTMLを配るサービスでは管轄リスクが直接効く**
+- **`.pw`** — 空きだがスパム送信元としての評判が悪く、メールゲートウェイやフィルタで弾かれやすい。公開した生成物が届かない事故につながる
+
+### 注意点
+
+- **RDAPで未登録でも必ず買えるとは限らない**。レジストリ予約語、プレミアム価格(4文字の一般語は対象になりやすい)、現地要件(`.eu` はEU居住要件)がある。実際の価格はレジストラで確認する
+- **Issue #23 のP0-1(生成物を別ホストへ分離)を採るなら、ドメインは2つ必要になる**。管理画面用と生成物配信用を分ける目的はドメイン評判の巻き込みを避けることなので、生成物側は評判が壊れても切り離せる安価なTLD、管理画面側は堅いTLDという組み合わせが合理的(例: 管理 `peta.run` + 生成物 `peta.click`)
+
 ## 決め方の提案
 
 紙の上で選ぶと外すので、次の3つを実際に書いてみて違和感の少ないものを採る。
