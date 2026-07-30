@@ -287,6 +287,43 @@ Cloudflareのダッシュボードで実際に検索したところ、上の表�
 
 Issue #23 のP0-1でドメインを2つ持つ場合も、`peta.topot.al` と `<uid>.peta.topot.al` のようにサブドメインで分ければ追加費用は発生しない。独立したドメインが必要になるのは、外部向けの公開サービスとして出す段階である。
 
+### `peta.<tld>` の全件走査(2026-07-30、Cloudflare移管前提)
+
+**移管先がCloudflareなら、CloudflareがそのTLDに対応している必要がある。** Cloudflare Registrarは非対応TLDを保有できないため、`.click` `.sh` `.gd` `.st` は「他社で買ってCloudflareへ移管」の対象にできない。よって探索範囲はCloudflare対応の375 TLDになる。
+
+その375件すべてにRDAPを投げた結果、**`peta.<tld>` が未登録なのは329件**(登録済み29件、RDAP非対応14件、エラー3件)。ただし前述のとおりRDAPは予約・プレミアムを検知できないため、以下は**ベース価格による優先順位付き確認リスト**であって、取得できる保証ではない。
+
+**安いTLDから順に試すのは逆効果になる。** 未登録329件の最安帯は `.vip`($5.15)、`.bid` `.date` `.download` `.loan` `.men` `.party` `.stream` `.trade` `.win`(各$5.64)、`.faith` `.racing` `.review` `.science` `.webcam`(各$10.79)で、**いずれもフィッシング・スパムの温床として知られるTLD群**である。ユーザー由来のHTMLを配るホストにとってドメイン評判は生命線(Issue #23 のP0-1)なので、価格順の上位は最初から除外する。
+
+用途との相性で絞った確認リスト(この順にダッシュボードで検索する):
+
+| 候補 | 更新/年 | 初年度 | 評価 |
+| --- | --- | --- | --- |
+| **peta.website** | $21.11 | $1.96 | 「単体HTMLを貼る」= website で最も説明不要。第一候補 |
+| **peta.run** | $22.14 | $4.12 | 短く、dev文脈で自然。「貼って動く」 |
+| **peta.foo** | $10.81 | $10.81 | 最も安く、**HSTS preload済みを確認済み**(HTTPS強制はこのサービスに好都合)。開発者文脈では通るが一般には意味不明 |
+| **peta.show** | $35.53 | $8.24 | 「見せる」で用途と完全一致。価格が高い |
+| **peta.gallery** | $23.17 | $23.17 | 一覧画面のメタファー |
+| **peta.live** | $26.26 | $2.57 | 「貼ったら即公開」 |
+| **peta.space** | $26.26 | $1.96 | 置き場 |
+| **peta.wiki** / **peta.pub** | $26.26 / $32.44 | — | `.pub` は publish に読める |
+| **peta.tools** / **peta.works** / **peta.studio** | $29〜32 | — | 用途からは一歩遠い |
+
+参考: `peta.page` `peta.site` `peta.online` `peta.host` `peta.link` は登録済み。`peta.cloud` はプレミアム$200.20、`peta.fyi` は予約で取得不可(実測)。
+
+**Google Registry も名前単位のプレミアムを持つ。** `.foo` `.dev` `.app` がフラット価格ならプレミアム問題を回避できると考えたが、Google Registryの担当者自身が「`forum.dev` は当初からプレミアムだった」と述べており、[.dev の価格ポリシー](https://www.registry.google/policies/pricing/dev/)にもプレミアムの規定がある。したがって `peta.foo` も安いとは限らず、実額の確認が必要である。
+
+### 他社で買ってCloudflareへ移管する場合の制約
+
+[Cloudflareの移管ドキュメント](https://developers.cloudflare.com/registrar/get-started/transfer-domain-to-cloudflare/)に明記されている前提条件のうち、購入計画に影響するもの:
+
+- **登録から60日経過していないと移管できない**(ICANNの規定)。直近60日に移管したものも不可
+- **登録者名・組織・メールアドレスを直近60日以内に変更していないこと**(同じくICANN)
+- Cloudflareアカウントに有効な支払い方法があり、登録者メールが検証済みであること
+- 移管すると登録期間が1年延長される(その分の支払いが発生する)
+
+つまり**他社で買う場合は最低60日はそのレジストラで運用することになる**。その間のDNSはCloudflareに向けられる(ネームサーバ変更はレジストラを問わず可能)ので、Workersの運用開始を待つ必要はない。移管はあくまで請求先と管理画面の集約が目的になる。
+
 ### レジストラの選択(2026-07-30 調査)
 
 **プレミアムと予約はレジストリの決定であり、レジストラを変えても解決しない。** Cloudflare Registrarは標準ドメインもプレミアムも[レジストリ原価で販売しマークアップを載せない](https://www.cloudflare.com/application-services/solutions/low-cost-domain-names/)。したがって `peta.cloud` の$200.20はレジストリの卸価格そのもので、**他社へ移ると同額か高くなる**(Porkbunはプレミアムに低率のマークアップ、Namecheapは運用費分のマークアップを載せる)。`peta.fyi` は予約なのでどのレジストラでも買えない。
