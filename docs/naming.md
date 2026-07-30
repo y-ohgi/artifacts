@@ -213,6 +213,53 @@ pon の浸透理由は「資料をponしました」と動詞化されたこと�
 | 「ペタバイト」で大容量ストレージと誤解される | タグラインで補正する(「ぺたっと貼って、URLを渡す。」) |
 | 擬音が非日本語話者に伝わらない | **名前を説明しない**。説明が必要な名前は説明せず、英語タグラインで動作だけを伝える("Paste an HTML. Get a link.") |
 
+## ドメインの結論(NS運用前提、2026-07-30)
+
+**Cloudflare Registrarへ移管しなくても、NSをCloudflareへ向けるだけでこのプロジェクトに必要な機能はすべて使える。** Cloudflare自身が「[サードパーティで買っても、Cloudflareで管理すればCloudflareの全機能を利用できる](https://developers.cloudflare.com/registrar/about/)」と明記している。Workersのカスタムドメイン、Access、R2のカスタムドメイン、Universal SSL、WAF、DNSSEC(DSレコードの登録だけ手作業)はいずれもNS委任で動く。
+
+移管しないと使えないのはレジストラ機能のみ(原価販売の価格、ワンクリックDNSSEC、Enterprise限定のCustom Domain Protection、WHOIS redaction、所有証明PDF、請求の集約)。逆に**移管するとNSを他社へ向けられなくなる**([FAQ](https://developers.cloudflare.com/registrar/faq/): "Can I change my nameservers? No")。
+
+したがって**TLDの選択に制約は無くなる**。以下が最終候補。
+
+| 候補 | Porkbun更新 | お名前.com更新 | 評価 |
+| --- | --- | --- | --- |
+| **peta.click** | $10.81(初年度$1.54) | ¥2,002 | **第一候補。** 「ぺた」の擬音とクリック感が近く、短く、安い。両社で扱いがある |
+| **peta.fyi** | $5.66 | ¥4,059 | 最安帯。**Cloudflareでは「利用できません」と出たがRDAPでは未登録**。Cloudflareが売らないだけの可能性があるので、他社で検索する価値がある |
+| **peta.ing** | $10.81 | 取扱要確認 | `peta.ing` = "petaing" と読める遊び。Google RegistryでHSTS preload済み |
+| **peta.foo** | $10.81 | 取扱要確認 | HSTS preload済み。開発者文脈では通るが一般には意味不明 |
+| **peta.work** | $10.81(初年度$2.06) | ¥1,804 | 最安クラス。「作ったもの」 |
+| **peta.show** | $35.53 | 取扱要確認 | 「見せる」で用途と完全一致だが高い |
+| peta.live / peta.space / peta.wiki | $26.26 | — | 次点 |
+
+**`.drop` はTLDとして存在しない**(IANAの1438件に無い)。近い語感の代替は `.click`。`.box` と `.post` は実在するがPorkbunが扱っておらず入手性が低い。
+
+避けるもの:
+
+- **`.zip`**($10.81、Google Registry) — 語感は良いが**ファイル拡張子と衝突し、企業のメールゲートウェイやプロキシでブロックされやすい**。生成物を配るホストとしては致命的
+- `.vip`($5.15)・`.fans`・`.casa`・`.surf`・`.beer`・`.garden` — 安いが意味が合わないか評判が弱い
+- `.wtf`($29.35) — カジュアルさは好みに合うが業務で使いにくい
+
+登録済みで選べないもの: `.lol` `.one` `.day` `.fun` `.top` `.xyz` `.io` `.me` `.to` `.cc` `.tv` `.la` `.li` `.is` `.it` `.host` `.online` `.best` `.page` `.site` `.link`
+
+### 購入先
+
+**お名前.comでも問題ない。** `.click` `.fyi` `.work` `.run` はいずれも取扱があり、NS運用なので機能面の制約も生じない。ただし2点注意がある。
+
+- **「サービス維持調整費」が表示額へ一定割合加算される**旨が[更新料金ページ](https://www.onamae.com/service/d-renew/price.html)に明記されている。更新料は表示額より上がる
+- TLDによって他社との差が大きい。`.click` は¥2,002でPorkbun($10.81)とほぼ同等だが、**`.fyi` は¥4,059でPorkbunの約5倍**
+
+| レジストラ | 評価 |
+| --- | --- |
+| **Porkbun**(おすすめ) | 907 TLDと最も広く、更新価格が安く安定。WHOIS代行無料、API無料、UIが素直。英語のみだがカード決済で完結する |
+| **お名前.com** | 日本語・円決済・慣れている強み。維持調整費と、TLDごとの割高さに注意 |
+| **Spaceship**(Namecheap系) | 安くUIが新しい。実績は浅い |
+| **Dynadot** | 安価でccTLDに強い |
+| **Cloudflare** | 原価販売で最安だが `.click` 非対応。加えて移管するとNSを他社へ向けられなくなる |
+
+使い分けの結論: **`.click` を採るなら価格差が小さいのでお名前.comで十分。`.fyi` を狙うならPorkbun。**
+
+以下は調査の記録で、Cloudflare移管を前提にしていた時点の絞り込みを含む。
+
 ## ドメインの空き状況(2026-07-28 調査)
 
 調査方法: IANAのRDAPブートストラップ(`https://data.iana.org/rdap/dns.json`)でTLDごとのRDAPサーバを解決し、`peta.<tld>` を問い合わせた(107 TLD)。RDAP非対応のTLDはDoH(`dns.google/resolve`)でNS委任の有無を見た。各ゾーンについて `nic.<tld>` などの既知の登録が `delegated` として観測できることを対照確認済み(`nic.nz` のみ対照なし)。
